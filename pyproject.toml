@@ -1,0 +1,39 @@
+[project]
+name = "amplifier-module-tool-mcp"
+version = "0.1.0"
+description = "MCP (Model Context Protocol) tool module for Amplifier"
+requires-python = ">=3.11"
+authors = [
+    { name = "Brian Krabach" },
+]
+dependencies = [
+    "amplifier-core",
+    "mcp>=1.0.0",
+    "pydantic>=2.0",
+]
+
+[project.entry-points."amplifier.tools"]
+tool-mcp = "amplifier_module_tool_mcp:mount"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["amplifier_module_tool_mcp"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-timeout>=2.2",
+]
+
+[tool.uv.sources]
+amplifier-core = { path = "../../amplifier-dev/amplifier-core", editable = true }

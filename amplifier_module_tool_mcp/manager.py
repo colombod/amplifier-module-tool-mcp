@@ -84,10 +84,12 @@ class MCPManager:
 
         if transport_type == "http":
             await self._start_http_server(server_name, server_config)
+        elif transport_type == "streamable-http":
+            await self._start_streamable_http_server(server_name, server_config)
         elif transport_type == "stdio":
             await self._start_stdio_server(server_name, server_config)
         else:
-            logger.error(f"Unknown transport type for server '{server_name}'")
+            logger.error(f"Unknown transport type '{transport_type}' for server '{server_name}'")
 
     def _detect_transport_type(self, server_config: dict[str, Any]) -> str:
         """

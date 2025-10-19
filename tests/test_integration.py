@@ -56,7 +56,7 @@ async def test_repomix_connection():
         await client.connect()
 
         # Verify connection
-        assert client._connected is True
+        assert client.is_connected
         assert client.session is not None
 
         # Verify tool discovery
@@ -74,7 +74,7 @@ async def test_repomix_connection():
     finally:
         # Always disconnect
         await client.disconnect()
-        assert client._connected is False
+        assert not client.is_connected
 
 
 @pytest.mark.asyncio
@@ -141,6 +141,8 @@ async def test_tool_execution():
 @pytest.mark.asyncio
 async def test_connection_lifecycle():
     """Test connection lifecycle management."""
+    from amplifier_module_tool_mcp.client import ConnectionState
+
     client = MCPClient(
         server_name="test",
         command="npx",
@@ -148,20 +150,23 @@ async def test_connection_lifecycle():
     )
 
     # Initial state
-    assert client._connected is False
+    assert client.state == ConnectionState.DISCONNECTED
+    assert not client.is_connected
     assert client.session is None
     assert client._exit_stack is None
 
     # After connect (only if npx available)
     if shutil.which("npx"):
         await client.connect()
-        assert client._connected is True
+        assert client.state == ConnectionState.CONNECTED
+        assert client.is_connected
         assert client.session is not None
         assert client._exit_stack is not None
 
         # After disconnect
         await client.disconnect()
-        assert client._connected is False
+        assert client.state == ConnectionState.DISCONNECTED
+        assert not client.is_connected
         assert client.session is None
         assert client._exit_stack is None
 

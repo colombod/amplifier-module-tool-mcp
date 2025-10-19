@@ -118,11 +118,21 @@ class MCPClient:
         self._connection_attempts += 1
 
         try:
-            # Create server parameters
+            # Create server parameters with inherited environment
+            # Merge parent process env with server-specific overrides
+            import os
+
+            if self.env:
+                # Inherit all parent env vars, then override with server config
+                merged_env = {**os.environ, **self.env}
+            else:
+                # Just use parent environment
+                merged_env = os.environ.copy()
+
             server_params = StdioServerParameters(
                 command=self.command,
                 args=self.args,
-                env=self.env if self.env else None,
+                env=merged_env,
             )
 
             # Use AsyncExitStack to manage context managers and keep connection alive

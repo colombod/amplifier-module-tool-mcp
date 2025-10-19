@@ -1,0 +1,45 @@
+{
+  "mcpServers": {
+    "repomix": {
+      "command": "npx",
+      "args": ["-y", "repomix", "--mcp"],
+      "description": "Code packaging and analysis - 7 tools for analyzing codebases"
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "description": "Documentation search - 2 tools for finding library docs"
+    },
+    "zen": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/BeehiveInnovations/zen-mcp-server.git",
+        "zen-mcp-server"
+      ],
+      "description": "AI workflows - 18 tools + 19 prompts for development workflows",
+      "note": "Requires OPENAI_API_KEY in environment"
+    },
+    "browser-use": {
+      "command": "uvx",
+      "args": ["browser-use[cli]==0.5.10", "--mcp"],
+      "env": {
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+      },
+      "description": "Browser automation - 11 tools for web scraping and automation",
+      "note": "Requires OPENAI_API_KEY"
+    },
+    "deepwiki": {
+      "type": "http",
+      "url": "https://mcp.deepwiki.com/mcp",
+      "description": "GitHub repository documentation (HTTP-based)",
+      "note": "Example HTTP/SSE transport - may have rate limits"
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
+      "description": "Official filesystem MCP server - safe file operations",
+      "note": "Change /workspace to your safe directory path"
+    }
+  }
+}

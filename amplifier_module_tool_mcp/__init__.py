@@ -1,8 +1,9 @@
 """
 MCP (Model Context Protocol) Tool Module for Amplifier.
 
-This module enables Amplifier to connect to MCP servers and expose their tools
-to LLM agents through the standard Amplifier Tool interface.
+This module enables Amplifier to connect to MCP servers and expose their
+capabilities (tools, resources, prompts) to LLM agents through the standard
+Amplifier interface.
 """
 
 import logging
@@ -33,13 +34,22 @@ async def mount(coordinator: ModuleCoordinator, config: dict | None = None):
     manager = MCPManager(config or {})
     await manager.start()
 
-    # Register each discovered tool with the coordinator
-    tools = manager.get_tools()
-    for tool_name, tool in tools.items():
-        await coordinator.mount("tools", tool, name=tool_name)
-        logger.info(f"Mounted MCP tool: {tool_name}")
+    # Register all capabilities with the coordinator
+    capabilities = manager.get_all_capabilities()
 
-    logger.info(f"MCP module mounted with {len(tools)} tools from {len(manager.get_server_names())} servers")
+    for cap_name, cap_wrapper in capabilities.items():
+        await coordinator.mount("tools", cap_wrapper, name=cap_name)
+        logger.debug(f"Mounted MCP capability: {cap_name}")
+
+    # Log summary
+    tools = manager.get_tools()
+    resources = manager.get_resources()
+    prompts = manager.get_prompts()
+
+    logger.info(
+        f"MCP module mounted: {len(tools)} tools, {len(resources)} resources, "
+        f"{len(prompts)} prompts from {len(manager.get_server_names())} servers"
+    )
 
     # Return cleanup function
     async def cleanup():

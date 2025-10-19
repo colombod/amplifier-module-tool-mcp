@@ -3,6 +3,8 @@
 import logging
 from typing import Any
 
+from amplifier_core import ToolResult
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,11 +33,26 @@ class MCPToolWrapper:
 
         # Extract tool info
         self.tool_name = tool_def["name"]
-        self.name = f"mcp_{server_name}_{self.tool_name}"
-        self.description = tool_def.get("description", "")
-        self.input_schema = tool_def.get("input_schema", {})
+        self._name = f"mcp_{server_name}_{self.tool_name}"
+        self._description = tool_def.get("description", "")
+        self._input_schema = tool_def.get("input_schema", {})
 
-    async def execute(self, input: dict[str, Any]) -> dict[str, Any]:
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return self._name
+
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return self._description
+
+    @property
+    def input_schema(self) -> dict[str, Any]:
+        """Input schema for the tool."""
+        return self._input_schema
+
+    async def execute(self, input: dict[str, Any]) -> ToolResult:
         """
         Execute the tool by proxying to the MCP server.
 
@@ -43,9 +60,7 @@ class MCPToolWrapper:
             input: Tool input parameters
 
         Returns:
-            Dictionary with:
-            - success: bool indicating if execution succeeded
-            - output: Tool output or error message
+            ToolResult with success status and output/error
         """
         try:
             logger.info(f"Executing MCP tool '{self.name}' with input: {input}")
@@ -58,11 +73,11 @@ class MCPToolWrapper:
 
             logger.info(f"MCP tool '{self.name}' completed successfully")
 
-            return {"success": True, "output": output}
+            return ToolResult(success=True, output=output)
 
         except Exception as e:
             logger.error(f"MCP tool '{self.name}' failed: {e}")
-            return {"success": False, "output": f"Tool execution error: {str(e)}"}
+            return ToolResult(success=False, error={"message": str(e)})
 
     def _extract_content(self, result: Any) -> str:
         """

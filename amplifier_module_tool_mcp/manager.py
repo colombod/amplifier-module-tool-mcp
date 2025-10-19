@@ -8,6 +8,7 @@ from amplifier_module_tool_mcp.config import MCPConfig
 from amplifier_module_tool_mcp.http_client import MCPHTTPClient
 from amplifier_module_tool_mcp.prompt_wrapper import MCPPromptWrapper
 from amplifier_module_tool_mcp.resource_wrapper import MCPResourceWrapper
+from amplifier_module_tool_mcp.streamable_http_client import MCPStreamableHTTPClient
 from amplifier_module_tool_mcp.wrapper import MCPToolWrapper
 
 logger = logging.getLogger(__name__)
@@ -154,7 +155,29 @@ class MCPManager:
         self.clients[server_name] = client
         await self._register_capabilities(server_name, client)
 
-    async def _register_capabilities(self, server_name: str, client: MCPClient | MCPHTTPClient) -> None:
+    async def _start_streamable_http_server(self, server_name: str, server_config: dict[str, Any]) -> None:
+        """Start a Streamable HTTP-based MCP server (2025-03-26 spec)."""
+        url = server_config.get("url")
+        headers = server_config.get("headers", {})
+
+        if not url:
+            logger.error(f"Streamable HTTP server '{server_name}' missing 'url' in configuration")
+            return
+
+        # Substitute environment variables in headers
+        headers = {k: MCPConfig.substitute_env_vars(v) for k, v in headers.items()}
+
+        # Create and connect client
+        client = MCPStreamableHTTPClient(server_name, url, headers)
+        await client.connect()
+
+        # Store client and register capabilities
+        self.clients[server_name] = client
+        await self._register_capabilities(server_name, client)
+
+    async def _register_capabilities(
+        self, server_name: str, client: MCPClient | MCPHTTPClient | MCPStreamableHTTPClient
+    ) -> None:
         """
         Register all capabilities (tools, resources, prompts) from a client.
 

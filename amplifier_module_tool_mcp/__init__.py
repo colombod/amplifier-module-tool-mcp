@@ -11,13 +11,14 @@ __version__ = "0.1.0"
 __all__ = ["mount", "MCPManager"]
 
 
-async def mount(config: dict | None = None) -> dict[str, object]:
+async def mount(coordinator, config: dict | None = None) -> dict[str, object]:
     """
     Mount the MCP tool module.
 
     This is the entry point called by Amplifier when loading this module.
 
     Args:
+        coordinator: Amplifier coordinator instance
         config: Configuration dictionary with optional 'servers' key
 
     Returns:

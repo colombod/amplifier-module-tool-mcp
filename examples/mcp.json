@@ -20,6 +20,11 @@
       "description": "✅ AI workflows - 18 tools + 19 prompts for development (code review, debugging, analysis, etc.)",
       "note": "Requires OPENAI_API_KEY in environment - module inherits it automatically"
     },
+    "deepwiki": {
+      "type": "streamable-http",
+      "url": "https://mcp.deepwiki.com/mcp",
+      "description": "✅ GitHub repository documentation - 3 tools for exploring repo docs (uses Streamable HTTP transport)"
+    },
     "filesystem": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
@@ -29,10 +34,10 @@
   },
   "_experimental_servers": {
     "wikidata": {
-      "type": "http",
+      "type": "streamable-http",
       "url": "https://wd-mcp.wmcloud.org/mcp/",
       "description": "❌ EXPERIMENTAL: Wikidata query server - 7 tools for semantic search and SPARQL queries",
-      "note": "⚠️  Currently has HTTP/SSE connection issues - debugging in progress"
+      "note": "⚠️  Server returns 400 Bad Request - may require authentication or specific headers"
     },
     "browser-use": {
       "command": "uvx",
@@ -44,5 +49,5 @@
       "note": "⚠️  Works but logs to stdout causing parse warnings (cosmetic issue, still functional)"
     }
   },
-  "_comment": "Move servers from _experimental_servers to mcpServers when you want to try them. The main mcpServers section contains only verified working servers."
+  "_comment": "The main mcpServers section contains verified working servers. Move servers from _experimental_servers when you want to try them (they have known issues)."
 }

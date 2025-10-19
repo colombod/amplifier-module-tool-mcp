@@ -94,9 +94,13 @@ class MCPStreamableHTTPClient:
             self._exit_stack = AsyncExitStack()
 
             # Connect via Streamable HTTP
-            read, write = await self._exit_stack.enter_async_context(
+            # Note: Returns (read, write, get_session_id) unlike other transports
+            read, write, get_session_id = await self._exit_stack.enter_async_context(
                 streamablehttp_client(self.url, headers=self.headers)
             )
+
+            # Store session ID getter for resumability
+            self._get_session_id = get_session_id
 
             # Create session
             session = await self._exit_stack.enter_async_context(ClientSession(read, write))

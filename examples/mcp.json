@@ -3,12 +3,12 @@
     "repomix": {
       "command": "npx",
       "args": ["-y", "repomix", "--mcp"],
-      "description": "Code packaging and analysis - 7 tools for analyzing codebases"
+      "description": "✅ Code packaging and analysis - 7 tools for analyzing codebases"
     },
     "context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp"],
-      "description": "Documentation search - 2 tools for finding library docs"
+      "description": "✅ Documentation search - 2 tools for finding library docs"
     },
     "zen": {
       "command": "uvx",
@@ -17,8 +17,22 @@
         "git+https://github.com/BeehiveInnovations/zen-mcp-server.git",
         "zen-mcp-server"
       ],
-      "description": "AI workflows - 18 tools + 19 prompts for development workflows",
-      "note": "Requires OPENAI_API_KEY in environment"
+      "description": "✅ AI workflows - 18 tools + 19 prompts for development (code review, debugging, analysis, etc.)",
+      "note": "Requires OPENAI_API_KEY in environment - module inherits it automatically"
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+      "description": "✅ Official MCP filesystem server - safe file operations within specified directory",
+      "note": "⚠️  Change /tmp to your desired safe directory path before using!"
+    }
+  },
+  "_experimental_servers": {
+    "wikidata": {
+      "type": "http",
+      "url": "https://wd-mcp.wmcloud.org/mcp/",
+      "description": "❌ EXPERIMENTAL: Wikidata query server - 7 tools for semantic search and SPARQL queries",
+      "note": "⚠️  Currently has HTTP/SSE connection issues - debugging in progress"
     },
     "browser-use": {
       "command": "uvx",
@@ -26,20 +40,9 @@
       "env": {
         "OPENAI_API_KEY": "${OPENAI_API_KEY}"
       },
-      "description": "Browser automation - 11 tools for web scraping and automation",
-      "note": "Requires OPENAI_API_KEY"
-    },
-    "deepwiki": {
-      "type": "http",
-      "url": "https://mcp.deepwiki.com/mcp",
-      "description": "GitHub repository documentation (HTTP-based)",
-      "note": "Example HTTP/SSE transport - may have rate limits"
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/workspace"],
-      "description": "Official filesystem MCP server - safe file operations",
-      "note": "Change /workspace to your safe directory path"
+      "description": "⚠️  Browser automation - 11 tools for web scraping",
+      "note": "⚠️  Works but logs to stdout causing parse warnings (cosmetic issue, still functional)"
     }
-  }
+  },
+  "_comment": "Move servers from _experimental_servers to mcpServers when you want to try them. The main mcpServers section contains only verified working servers."
 }

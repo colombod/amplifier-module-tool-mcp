@@ -1,6 +1,7 @@
 """MCP Client wrapper for connecting to and communicating with MCP servers."""
 
 import logging
+from contextlib import AsyncExitStack
 from typing import Any
 
 from mcp import ClientSession
@@ -19,6 +20,9 @@ class MCPClient:
     - Tool discovery via list_tools
     - Tool execution via call_tool
     - Basic error handling and reconnection
+
+    The client maintains an active connection by managing the async context
+    managers for the stdio transport and session.
     """
 
     def __init__(self, server_name: str, command: str, args: list[str], env: dict[str, str] | None = None):
@@ -38,6 +42,7 @@ class MCPClient:
         self.session: ClientSession | None = None
         self.tools: list[dict[str, Any]] = []
         self._connected = False
+        self._exit_stack: AsyncExitStack | None = None
 
     async def connect(self) -> None:
         """Connect to the MCP server and discover tools."""
@@ -52,31 +57,41 @@ class MCPClient:
                 env=self.env if self.env else None,
             )
 
-            # Connect using stdio transport
-            async with stdio_client(server_params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    # Initialize the session
-                    await session.initialize()
+            # Use AsyncExitStack to manage context managers and keep connection alive
+            self._exit_stack = AsyncExitStack()
 
-                    # Store session
-                    self.session = session
+            # Enter stdio_client context
+            read, write = await self._exit_stack.enter_async_context(stdio_client(server_params))
 
-                    # Discover tools
-                    result = await session.list_tools()
-                    self.tools = [
-                        {
-                            "name": tool.name,
-                            "description": tool.description or "",
-                            "input_schema": tool.inputSchema,
-                        }
-                        for tool in result.tools
-                    ]
+            # Enter ClientSession context
+            session = await self._exit_stack.enter_async_context(ClientSession(read, write))
 
-                    self._connected = True
-                    logger.info(f"Connected to MCP server '{self.server_name}' - discovered {len(self.tools)} tools")
+            # Initialize the session
+            await session.initialize()
+
+            # Store session
+            self.session = session
+
+            # Discover tools
+            result = await session.list_tools()
+            self.tools = [
+                {
+                    "name": tool.name,
+                    "description": tool.description or "",
+                    "input_schema": tool.inputSchema,
+                }
+                for tool in result.tools
+            ]
+
+            self._connected = True
+            logger.info(f"Connected to MCP server '{self.server_name}' - discovered {len(self.tools)} tools")
 
         except Exception as e:
             self._connected = False
+            # Clean up on error
+            if self._exit_stack:
+                await self._exit_stack.aclose()
+                self._exit_stack = None
             logger.error(f"Failed to connect to MCP server '{self.server_name}': {e}")
             raise RuntimeError(f"MCP server connection failed: {e}") from e
 
@@ -104,11 +119,16 @@ class MCPClient:
 
     async def disconnect(self) -> None:
         """Disconnect from the MCP server."""
-        if self.session:
-            # Close session (context manager handles cleanup)
-            self.session = None
-            self._connected = False
-            logger.info(f"Disconnected from MCP server '{self.server_name}'")
+        if self._exit_stack:
+            try:
+                await self._exit_stack.aclose()
+                logger.info(f"Disconnected from MCP server '{self.server_name}'")
+            except Exception as e:
+                logger.error(f"Error disconnecting from '{self.server_name}': {e}")
+            finally:
+                self._exit_stack = None
+                self.session = None
+                self._connected = False
 
     def get_tools(self) -> list[dict[str, Any]]:
         """Get the list of discovered tools."""

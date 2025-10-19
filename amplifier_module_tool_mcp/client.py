@@ -1,5 +1,6 @@
 """MCP Client wrapper for connecting to and communicating with MCP servers."""
 
+import asyncio
 import logging
 from contextlib import AsyncExitStack
 from enum import Enum
@@ -222,7 +223,13 @@ class MCPClient:
         )
 
     async def disconnect(self) -> None:
-        """Disconnect from the MCP server."""
+        """
+        Disconnect from the MCP server.
+
+        Note: Cleanup may fail when called across task boundaries due to
+        anyio cancel scope management. This is acceptable as connections
+        will close when the process exits.
+        """
         if self._state == ConnectionState.DISCONNECTED:
             return
 
@@ -232,8 +239,13 @@ class MCPClient:
             try:
                 await self._exit_stack.aclose()
                 logger.info(f"Disconnected from MCP server '{self.server_name}'")
+            except (RuntimeError, asyncio.CancelledError) as e:
+                # Suppress cancel scope and task boundary errors
+                # Connections will close on process exit anyway
+                logger.debug(f"Suppressed cleanup error for '{self.server_name}': {type(e).__name__}")
             except Exception as e:
-                logger.error(f"Error disconnecting from '{self.server_name}': {e}")
+                # Log unexpected errors but don't crash
+                logger.warning(f"Unexpected error disconnecting from '{self.server_name}': {e}")
             finally:
                 self._exit_stack = None
                 self.session = None

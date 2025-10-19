@@ -1,8 +1,28 @@
 # MCP Module - Completion Roadmap
 
-**Current Status**: Production Alpha (All High-Priority Complete)
+**Current Status**: Production Alpha (stdio transport fully working)
 **Version**: 0.1.0
 **Date**: 2025-10-18
+
+---
+
+## ⚠️  Known Issue: HTTP/SSE Transport
+
+**Status**: Code implemented but has async context bugs with real servers
+
+**Impact**:
+- ✅ stdio transport: 100% working (4/4 servers tested)
+- ❌ HTTP/SSE transport: 0% working (0/2 servers tested)
+
+**Tested**:
+- deepwiki: TaskGroup async errors
+- wikidata: TaskGroup async errors
+
+**Root Cause**: Likely async context management across task boundaries with anyio
+
+**Workaround**: Use stdio-based servers only (repomix, zen, context7, filesystem)
+
+**Priority for Fix**: Medium (HTTP servers are less common than stdio)
 
 ---
 

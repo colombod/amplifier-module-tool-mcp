@@ -1,6 +1,7 @@
 """Tests for MCP tool wrapper."""
 
 import pytest
+from amplifier_core import ToolResult
 from amplifier_module_tool_mcp.wrapper import MCPToolWrapper
 
 
@@ -50,9 +51,10 @@ async def test_wrapper_execute(sample_tool_def):
     # Execute tool
     result = await wrapper.execute({"input": "test"})
 
-    # Verify execution
-    assert result["success"] is True
-    assert "Mock tool output" in result["output"]
+    # Verify result is ToolResult
+    assert isinstance(result, ToolResult)
+    assert result.success is True
+    assert "Mock tool output" in result.output
     assert client.call_count == 1
     assert client.last_tool_name == "test_tool"
     assert client.last_arguments == {"input": "test"}
@@ -72,5 +74,8 @@ async def test_wrapper_error_handling(sample_tool_def):
     # Execute tool (should handle error gracefully)
     result = await wrapper.execute({"input": "test"})
 
-    assert result["success"] is False
-    assert "Tool execution error" in result["output"]
+    # Verify result is ToolResult with error
+    assert isinstance(result, ToolResult)
+    assert result.success is False
+    assert result.error is not None
+    assert "message" in result.error

@@ -5,7 +5,6 @@ from typing import Any
 
 from amplifier_module_tool_mcp.client import MCPClient
 from amplifier_module_tool_mcp.config import MCPConfig
-from amplifier_module_tool_mcp.http_client import MCPHTTPClient
 from amplifier_module_tool_mcp.prompt_wrapper import MCPPromptWrapper
 from amplifier_module_tool_mcp.resource_wrapper import MCPResourceWrapper
 from amplifier_module_tool_mcp.streamable_http_client import MCPStreamableHTTPClient
@@ -20,7 +19,7 @@ class MCPManager:
 
     Responsibilities:
     - Load server configurations
-    - Start/stop MCP clients (stdio and HTTP)
+    - Start/stop MCP clients (stdio and Streamable HTTP)
     - Discover tools, resources, and prompts from all servers
     - Create wrappers for all primitives
     - Provide unified registry for Amplifier
@@ -34,7 +33,7 @@ class MCPManager:
             config: Configuration dictionary (inline config from profile)
         """
         self.config = MCPConfig(config)
-        self.clients: dict[str, MCPClient | MCPHTTPClient] = {}
+        self.clients: dict[str, MCPClient | MCPStreamableHTTPClient] = {}
         self.tools: dict[str, MCPToolWrapper] = {}
         self.resources: dict[str, MCPResourceWrapper] = {}
         self.prompts: dict[str, MCPPromptWrapper] = {}
@@ -45,7 +44,7 @@ class MCPManager:
 
         This:
         1. Loads server configurations from all sources
-        2. Creates MCP clients for each server (stdio or HTTP)
+        2. Creates MCP clients for each server (stdio or Streamable HTTP)
         3. Connects to servers and discovers capabilities
         4. Wraps tools, resources, and prompts for Amplifier
         """
@@ -82,9 +81,7 @@ class MCPManager:
         # Detect transport type
         transport_type = self._detect_transport_type(server_config)
 
-        if transport_type == "http":
-            await self._start_http_server(server_name, server_config)
-        elif transport_type == "streamable-http":
+        if transport_type == "streamable-http":
             await self._start_streamable_http_server(server_name, server_config)
         elif transport_type == "stdio":
             await self._start_stdio_server(server_name, server_config)
@@ -99,15 +96,19 @@ class MCPManager:
             server_config: Server configuration
 
         Returns:
-            "http" or "stdio"
+            "streamable-http" or "stdio"
         """
         # Explicit type in config
         if "type" in server_config:
-            return server_config["type"]
+            transport = server_config["type"]
+            # Normalize variations
+            if transport in ("streamable-http", "streamable_http", "streamablehttp", "http"):
+                return "streamable-http"
+            return transport
 
-        # URL means HTTP
+        # URL means Streamable HTTP (current spec)
         if "url" in server_config:
-            return "http"
+            return "streamable-http"
 
         # Command means stdio
         if "command" in server_config:
@@ -137,26 +138,6 @@ class MCPManager:
         self.clients[server_name] = client
         await self._register_capabilities(server_name, client)
 
-    async def _start_http_server(self, server_name: str, server_config: dict[str, Any]) -> None:
-        """Start an HTTP/SSE-based MCP server."""
-        url = server_config.get("url")
-        headers = server_config.get("headers", {})
-
-        if not url:
-            logger.error(f"HTTP server '{server_name}' missing 'url' in configuration")
-            return
-
-        # Substitute environment variables in headers
-        headers = {k: MCPConfig.substitute_env_vars(v) for k, v in headers.items()}
-
-        # Create and connect client
-        client = MCPHTTPClient(server_name, url, headers)
-        await client.connect()
-
-        # Store client and register capabilities
-        self.clients[server_name] = client
-        await self._register_capabilities(server_name, client)
-
     async def _start_streamable_http_server(self, server_name: str, server_config: dict[str, Any]) -> None:
         """Start a Streamable HTTP-based MCP server (2025-03-26 spec)."""
         url = server_config.get("url")
@@ -177,9 +158,7 @@ class MCPManager:
         self.clients[server_name] = client
         await self._register_capabilities(server_name, client)
 
-    async def _register_capabilities(
-        self, server_name: str, client: MCPClient | MCPHTTPClient | MCPStreamableHTTPClient
-    ) -> None:
+    async def _register_capabilities(self, server_name: str, client: MCPClient | MCPStreamableHTTPClient) -> None:
         """
         Register all capabilities (tools, resources, prompts) from a client.
 

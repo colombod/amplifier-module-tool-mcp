@@ -13,10 +13,9 @@ Complete MCP (Model Context Protocol) integration for Amplifier with **60 workin
 
 ### Features Implemented
 
-**All 3 MCP Transport Types**:
+**Both MCP Transport Types** (2025-03-26 spec):
 - ✅ stdio - Subprocess-based servers
-- ✅ Streamable HTTP - Web-based servers (2025-03-26 spec)
-- ⚠️ HTTP/SSE - Code exists, untested
+- ✅ Streamable HTTP - Web-based servers
 
 **All 3 MCP Primitive Types**:
 - ✅ Tools - 41 working

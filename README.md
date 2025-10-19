@@ -10,7 +10,7 @@ MCP (Model Context Protocol) integration for Amplifier, enabling connection to M
 
 ## Features
 
-- ✅ stdio and HTTP/SSE transport support
+- ✅ stdio and Streamable HTTP transport support (2025-03-26 MCP spec)
 - ✅ Tools, Resources, and Prompts discovery
 - ✅ Multi-server orchestration
 - ✅ Environment variable inheritance
@@ -19,7 +19,7 @@ MCP (Model Context Protocol) integration for Amplifier, enabling connection to M
 - ✅ Health monitoring
 - ✅ Logging support
 
-**Currently Working**: 57+ capabilities from 4 MCP servers (38 tools + 19 prompts)
+**Currently Working**: 60 capabilities from 5 MCP servers (41 tools + 19 prompts)
 
 ---
 

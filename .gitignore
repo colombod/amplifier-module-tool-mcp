@@ -47,5 +47,10 @@ Thumbs.db
 *.log
 *.jsonl
 
+# Temporary files
+*-stop*.txt
+*.tmp
+*.temp
+
 # uv
 uv.lock

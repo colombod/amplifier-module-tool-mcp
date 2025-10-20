@@ -55,24 +55,42 @@ Create `.amplifier/mcp.json`:
 
 ## Usage
 
-Add to your Amplifier profile:
+Add to your Amplifier profile (`.amplifier/profiles/my-profile.md`):
 
 ```yaml
 ---
 profile:
   name: my-profile
-  extends: full-openai
+  extends: base
+
+session:
+  orchestrator:
+    module: loop-basic
+  context:
+    module: context-simple
+
+providers:
+  - module: provider-anthropic  # or provider-openai
+    config:
+      priority: 1
+      default_model: claude-sonnet-4-5
 
 tools:
   - module: tool-mcp
+  - module: tool-filesystem
+  - module: tool-bash
 ---
+
+# My Profile with MCP
+
+Your profile documentation goes here...
 ```
 
 Then use with Amplifier:
 
 ```bash
-amplifier profile apply my-profile
-amplifier run "Use mcp_repomix_pack_codebase to analyze this project"
+# Use the profile by name (from the name: field in the file)
+amplifier run --profile my-profile "Use mcp_repomix_pack_codebase to analyze this project"
 ```
 
 ---

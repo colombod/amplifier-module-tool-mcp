@@ -3,12 +3,12 @@
     "repomix": {
       "command": "npx",
       "args": ["-y", "repomix", "--mcp"],
-      "description": "✅ Code packaging and analysis - 7 tools for analyzing codebases"
+      "description": "Code packaging and analysis tools for analyzing codebases"
     },
     "context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp"],
-      "description": "✅ Documentation search - 2 tools for finding library docs"
+      "description": "Documentation search tools for finding library documentation"
     },
     "zen": {
       "command": "uvx",
@@ -17,37 +17,12 @@
         "git+https://github.com/BeehiveInnovations/zen-mcp-server.git",
         "zen-mcp-server"
       ],
-      "description": "✅ AI workflows - 18 tools + 19 prompts for development (code review, debugging, analysis, etc.)",
-      "note": "Requires OPENAI_API_KEY in environment - module inherits it automatically"
+      "description": "AI-powered development workflow tools and prompts for code review, debugging, security audits, and more. Requires OPENAI_API_KEY environment variable."
     },
     "deepwiki": {
       "type": "streamable-http",
       "url": "https://mcp.deepwiki.com/mcp",
-      "description": "✅ GitHub repository documentation - 3 tools for exploring repo docs (uses Streamable HTTP transport)"
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
-      "description": "✅ Official MCP filesystem server - safe file operations within specified directory",
-      "note": "⚠️  Change /tmp to your desired safe directory path before using!"
+      "description": "GitHub repository documentation and exploration tools"
     }
-  },
-  "_experimental_servers": {
-    "wikidata": {
-      "type": "streamable-http",
-      "url": "https://wd-mcp.wmcloud.org/mcp/",
-      "description": "❌ EXPERIMENTAL: Wikidata query server - 7 tools for semantic search and SPARQL queries",
-      "note": "⚠️  Server returns 400 Bad Request - may require authentication or specific headers"
-    },
-    "browser-use": {
-      "command": "uvx",
-      "args": ["browser-use[cli]==0.5.10", "--mcp"],
-      "env": {
-        "OPENAI_API_KEY": "${OPENAI_API_KEY}"
-      },
-      "description": "⚠️  Browser automation - 11 tools for web scraping",
-      "note": "⚠️  Works but logs to stdout causing parse warnings (cosmetic issue, still functional)"
-    }
-  },
-  "_comment": "The main mcpServers section contains verified working servers. Move servers from _experimental_servers when you want to try them (they have known issues)."
+  }
 }

@@ -5,6 +5,12 @@ profile:
   description: "Example profile with MCP tools enabled"
   extends: base
 
+session:
+  orchestrator:
+    module: loop-basic
+  context:
+    module: context-simple
+
 # Use your preferred provider
 providers:
   - module: provider-anthropic
@@ -50,15 +56,17 @@ When you use this profile, your LLM agent gets access to tools from configured M
 
 1. Copy this file to your project:
    ```bash
-   cp examples/profile-with-mcp.yaml .amplifier/profiles/
+   cp examples/example-mcp.md .amplifier/profiles/
    ```
 
-2. Create MCP server configuration (see examples/mcp.json)
+2. Create MCP server configuration (see examples/mcp.json):
+   ```bash
+   cp examples/mcp.json .amplifier/
+   ```
 
 3. Use the profile:
    ```bash
-   amplifier profile apply example-mcp
-   amplifier run
+   amplifier run --profile example-mcp "What MCP tools do you have?"
    ```
 
 ## Configuration

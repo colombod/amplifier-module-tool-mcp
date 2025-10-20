@@ -87,13 +87,11 @@ tools:
 Your profile documentation goes here...
 ```
 
-**Note:** The `source:` field enables auto-download from git. Users need collaborator access to your private repo and GitHub authentication configured.
-
 Then use with Amplifier:
 
 ```bash
 # Use the profile by name (from the name: field in the file)
-amplifier run --profile my-profile "Use mcp_repomix_pack_codebase to analyze this project"
+amplifier run --profile mcp-example "Use mcp_repomix_pack_codebase to analyze this project"
 ```
 
 ---

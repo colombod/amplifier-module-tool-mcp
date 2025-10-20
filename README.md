@@ -77,6 +77,7 @@ providers:
 
 tools:
   - module: tool-mcp
+    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
   - module: tool-filesystem
   - module: tool-bash
 ---
@@ -85,6 +86,8 @@ tools:
 
 Your profile documentation goes here...
 ```
+
+**Note:** The `source:` field enables auto-download from git. Users need collaborator access to your private repo and GitHub authentication configured.
 
 Then use with Amplifier:
 

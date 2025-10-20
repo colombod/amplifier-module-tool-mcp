@@ -27,6 +27,7 @@ providers:
 # Add MCP tools
 tools:
   - module: tool-mcp
+    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
     # Optional inline config (overrides .amplifier/mcp.json)
     # config:
     #   servers:

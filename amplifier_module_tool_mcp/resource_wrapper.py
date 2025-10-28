@@ -16,7 +16,7 @@ class MCPResourceWrapper:
     We wrap them as tools so they can be called by the LLM.
     """
 
-    def __init__(self, server_name: str, resource_def: dict[str, Any], client: Any):
+    def __init__(self, server_name: str, resource_def: dict[str, Any], client: Any, hooks: Any):
         """
         Initialize resource wrapper.
 
@@ -24,9 +24,11 @@ class MCPResourceWrapper:
             server_name: Name of the MCP server providing this resource
             resource_def: Resource definition (uri, name, description, mime_type)
             client: MCPClient instance to use for resource reading
+            hooks: Hook registry for event emission (currently unused - orchestrator handles tool events)
         """
         self.server_name = server_name
         self.client = client
+        self.hooks = hooks
 
         # Extract resource info
         self.resource_uri = resource_def["uri"]
@@ -74,20 +76,20 @@ class MCPResourceWrapper:
 
         Returns:
             ToolResult with resource content
+
+        Note:
+            Tool execution events (TOOL_PRE, TOOL_POST, TOOL_ERROR) are emitted
+            automatically by the orchestrator. No manual event emission needed here.
         """
         try:
             # Use provided URI or default to resource's URI
             uri = input.get("uri", self.resource_uri)
-
-            logger.info(f"Reading MCP resource '{self.name}' (uri: {uri})")
 
             # Read resource from MCP server
             result = await self.client.read_resource(uri)
 
             # Extract content from result
             content = self._extract_content(result)
-
-            logger.info(f"MCP resource '{self.name}' read successfully")
 
             return ToolResult(success=True, output=content)
 

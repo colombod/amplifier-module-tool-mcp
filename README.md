@@ -34,6 +34,8 @@ uv pip install -e .
 
 ## Configuration
 
+### Server Configuration
+
 Create `.amplifier/mcp.json`:
 
 ```json
@@ -50,6 +52,50 @@ Create `.amplifier/mcp.json`:
   }
 }
 ```
+
+### Module Configuration Options
+
+Configure in your profile:
+
+```yaml
+tools:
+  - module: tool-mcp
+    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
+    config:
+      # Server output control
+      verbose_servers: false  # Default: suppress MCP server debug output
+      server_log_dir: ~/.amplifier/logs/mcp-servers/  # Where logs are saved when suppressed
+
+      # Optional inline server config (overrides .amplifier/mcp.json)
+      servers:
+        my-server:
+          command: npx
+          args: ["-y", "my-mcp-server"]
+```
+
+**Configuration options**:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `verbose_servers` | `false` | Show MCP server stderr output in console |
+| `server_log_dir` | `~/.amplifier/logs/mcp-servers/` | Directory for server logs when suppressed |
+| `servers` | (optional) | Inline server configuration (overrides .amplifier/mcp.json) |
+
+**Environment variable override**:
+```bash
+# Enable verbose output without changing profile
+AMPLIFIER_MCP_VERBOSE=true amplifier run --profile mcp-example "test"
+```
+
+**When to use verbose mode**:
+- Debugging MCP server connection issues
+- Diagnosing tool execution failures
+- Understanding server initialization
+
+**Default behavior (quiet)**:
+- Clean console output
+- Server logs saved to `~/.amplifier/logs/mcp-servers/{server-name}.log`
+- Check logs if server connection fails
 
 ---
 
@@ -70,7 +116,8 @@ session:
     module: context-simple
 
 providers:
-  - module: provider-anthropic  # or provider-openai
+  - module: provider-anthropic
+    source: git+https://github.com/microsoft/amplifier-module-provider-anthropic@main
     config:
       priority: 1
       default_model: claude-sonnet-4-5
@@ -78,8 +125,12 @@ providers:
 tools:
   - module: tool-mcp
     source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
+    config:
+      verbose_servers: false  # Optional: set to true to see server debug output
   - module: tool-filesystem
+    source: git+https://github.com/microsoft/amplifier-module-tool-filesystem@main
   - module: tool-bash
+    source: git+https://github.com/microsoft/amplifier-module-tool-bash@main
 ---
 
 # My Profile with MCP
@@ -91,7 +142,7 @@ Then use with Amplifier:
 
 ```bash
 # Use the profile by name (from the name: field in the file)
-amplifier run --profile mcp-example "Use mcp_repomix_pack_codebase to analyze this project"
+amplifier run --profile my-profile "What MCP tools do you have?"
 ```
 
 ---

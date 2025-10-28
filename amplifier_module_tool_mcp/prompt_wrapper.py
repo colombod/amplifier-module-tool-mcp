@@ -16,7 +16,7 @@ class MCPPromptWrapper:
     We wrap them as tools so they can be called by the LLM.
     """
 
-    def __init__(self, server_name: str, prompt_def: dict[str, Any], client: Any):
+    def __init__(self, server_name: str, prompt_def: dict[str, Any], client: Any, hooks: Any):
         """
         Initialize prompt wrapper.
 
@@ -24,9 +24,11 @@ class MCPPromptWrapper:
             server_name: Name of the MCP server providing this prompt
             prompt_def: Prompt definition (name, description, arguments)
             client: MCPClient instance to use for prompt retrieval
+            hooks: Hook registry for event emission (currently unused - orchestrator handles tool events)
         """
         self.server_name = server_name
         self.client = client
+        self.hooks = hooks
 
         # Extract prompt info
         self.prompt_name = prompt_def["name"]
@@ -77,17 +79,17 @@ class MCPPromptWrapper:
 
         Returns:
             ToolResult with filled prompt messages
+
+        Note:
+            Tool execution events (TOOL_PRE, TOOL_POST, TOOL_ERROR) are emitted
+            automatically by the orchestrator. No manual event emission needed here.
         """
         try:
-            logger.info(f"Getting MCP prompt '{self.name}' with arguments: {input}")
-
             # Get prompt from MCP server
             result = await self.client.get_prompt(self.prompt_name, input)
 
             # Extract messages from result
             messages = self._extract_messages(result)
-
-            logger.info(f"MCP prompt '{self.name}' retrieved successfully")
 
             return ToolResult(success=True, output=messages)
 

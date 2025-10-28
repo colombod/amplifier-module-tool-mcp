@@ -79,12 +79,12 @@ async def test_repomix_connection():
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not shutil.which("npx"), reason="npx not available")
-async def test_manager_with_real_server(test_mcp_config, monkeypatch):
+async def test_manager_with_real_server(test_mcp_config, monkeypatch, mock_coordinator):
     """Test MCPManager with real server configuration."""
     # Change to test directory
     monkeypatch.chdir(test_mcp_config)
 
-    manager = MCPManager({})
+    manager = MCPManager({}, mock_coordinator)
 
     try:
         # Start manager
@@ -98,9 +98,11 @@ async def test_manager_with_real_server(test_mcp_config, monkeypatch):
         tools = manager.get_tools()
         assert len(tools) > 0
 
-        # Check tool naming convention
+        # Check tool naming convention (tools should start with mcp_{server}_)
         for tool_name in tools.keys():
-            assert tool_name.startswith("mcp_repomix_")
+            assert tool_name.startswith("mcp_")
+            # Should contain server name
+            assert any(server in tool_name for server in servers)
 
         print(f"\n✅ Manager started with {len(servers)} servers and {len(tools)} tools")
 

@@ -4,6 +4,7 @@ import asyncio
 import logging
 from contextlib import AsyncExitStack
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from mcp import ClientSession
@@ -50,6 +51,8 @@ class MCPClient:
         args: list[str],
         env: dict[str, str] | None = None,
         reconnection_config: ReconnectionConfig | None = None,
+        verbose_servers: bool = False,
+        server_log_dir: Path | None = None,
     ):
         """
         Initialize MCP client.
@@ -60,6 +63,8 @@ class MCPClient:
             args: Arguments for the command
             env: Optional environment variables
             reconnection_config: Reconnection configuration (uses defaults if None)
+            verbose_servers: Whether to show server stderr output (default: False)
+            server_log_dir: Directory for server logs when suppressed (default: ~/.amplifier/logs/mcp-servers/)
         """
         self.server_name = server_name
         self.command = command
@@ -77,6 +82,11 @@ class MCPClient:
         self._circuit_breaker = CircuitBreaker()
         self._connection_attempts = 0
         self._last_error: Exception | None = None
+
+        # Server output control
+        self.verbose_servers = verbose_servers
+        self.server_log_dir = server_log_dir or Path("~/.amplifier/logs/mcp-servers/").expanduser()
+        self._server_log_file = None
 
     @property
     def state(self) -> ConnectionState:
@@ -133,6 +143,17 @@ class MCPClient:
                 # Just use parent environment
                 merged_env = os.environ.copy()
 
+            # Setup stderr handling based on verbose setting
+            if not self.verbose_servers:
+                # Suppress server output - redirect to log file
+                self.server_log_dir.mkdir(parents=True, exist_ok=True)
+                log_file_path = self.server_log_dir / f"{self.server_name}.log"
+                self._server_log_file = open(log_file_path, "a", encoding="utf-8")
+                logger.debug(f"Server '{self.server_name}' output redirected to: {log_file_path}")
+            else:
+                self._server_log_file = None
+                logger.debug(f"Server '{self.server_name}' output will appear in console")
+
             server_params = StdioServerParameters(
                 command=self.command,
                 args=self.args,
@@ -143,7 +164,9 @@ class MCPClient:
             self._exit_stack = AsyncExitStack()
 
             # Enter stdio_client context
-            read, write = await self._exit_stack.enter_async_context(stdio_client(server_params))
+            read, write = await self._exit_stack.enter_async_context(
+                stdio_client(server_params, errlog=self._server_log_file)
+            )
 
             # Enter ClientSession context
             session = await self._exit_stack.enter_async_context(ClientSession(read, write))
@@ -177,7 +200,21 @@ class MCPClient:
                 await self._exit_stack.aclose()
                 self._exit_stack = None
 
-            logger.error(f"Failed to connect to MCP server '{self.server_name}': {e}")
+            # Close log file if opened
+            if self._server_log_file:
+                try:
+                    self._server_log_file.close()
+                except Exception:
+                    pass
+                self._server_log_file = None
+
+            # Include log file location in error message if suppressed
+            error_msg = f"Failed to connect to MCP server '{self.server_name}': {e}"
+            if not self.verbose_servers:
+                log_file_path = self.server_log_dir / f"{self.server_name}.log"
+                error_msg += f"\nServer logs available at: {log_file_path}"
+
+            logger.error(error_msg)
             raise RuntimeError(f"MCP server connection failed: {e}") from e
 
     async def connect_with_retry(self) -> None:
@@ -354,6 +391,16 @@ class MCPClient:
             finally:
                 self._exit_stack = None
                 self.session = None
+
+        # Close server log file if we opened one
+        if self._server_log_file:
+            try:
+                self._server_log_file.close()
+                logger.debug(f"Closed log file for server '{self.server_name}'")
+            except Exception as e:
+                logger.debug(f"Error closing log file for '{self.server_name}': {e}")
+            finally:
+                self._server_log_file = None
 
         self._state = ConnectionState.DISCONNECTED
 

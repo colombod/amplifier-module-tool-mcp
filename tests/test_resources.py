@@ -39,10 +39,10 @@ def sample_resource_def():
 
 
 @pytest.mark.asyncio
-async def test_resource_wrapper_initialization(sample_resource_def):
+async def test_resource_wrapper_initialization(sample_resource_def, mock_hooks):
     """Test resource wrapper initialization."""
     client = MockMCPClient()
-    wrapper = MCPResourceWrapper("test-server", sample_resource_def, client)
+    wrapper = MCPResourceWrapper("test-server", sample_resource_def, client, mock_hooks)
 
     assert wrapper.server_name == "test-server"
     assert wrapper.resource_uri == "file:///workspace/README.md"
@@ -52,10 +52,10 @@ async def test_resource_wrapper_initialization(sample_resource_def):
 
 
 @pytest.mark.asyncio
-async def test_resource_wrapper_properties(sample_resource_def):
+async def test_resource_wrapper_properties(sample_resource_def, mock_hooks):
     """Test resource wrapper properties."""
     client = MockMCPClient()
-    wrapper = MCPResourceWrapper("test-server", sample_resource_def, client)
+    wrapper = MCPResourceWrapper("test-server", sample_resource_def, client, mock_hooks)
 
     # Check properties
     assert wrapper.name.startswith("mcp_test-server_resource_")
@@ -66,10 +66,10 @@ async def test_resource_wrapper_properties(sample_resource_def):
 
 
 @pytest.mark.asyncio
-async def test_resource_wrapper_execute_default_uri(sample_resource_def):
+async def test_resource_wrapper_execute_default_uri(sample_resource_def, mock_hooks):
     """Test resource execution with default URI."""
     client = MockMCPClient()
-    wrapper = MCPResourceWrapper("test-server", sample_resource_def, client)
+    wrapper = MCPResourceWrapper("test-server", sample_resource_def, client, mock_hooks)
 
     # Execute without providing URI (use default)
     result = await wrapper.execute({})
@@ -85,10 +85,10 @@ async def test_resource_wrapper_execute_default_uri(sample_resource_def):
 
 
 @pytest.mark.asyncio
-async def test_resource_wrapper_execute_custom_uri(sample_resource_def):
+async def test_resource_wrapper_execute_custom_uri(sample_resource_def, mock_hooks):
     """Test resource execution with custom URI."""
     client = MockMCPClient()
-    wrapper = MCPResourceWrapper("test-server", sample_resource_def, client)
+    wrapper = MCPResourceWrapper("test-server", sample_resource_def, client, mock_hooks)
 
     # Execute with custom URI
     result = await wrapper.execute({"uri": "file:///other/path.txt"})
@@ -99,7 +99,7 @@ async def test_resource_wrapper_execute_custom_uri(sample_resource_def):
 
 
 @pytest.mark.asyncio
-async def test_resource_wrapper_error_handling(sample_resource_def):
+async def test_resource_wrapper_error_handling(sample_resource_def, mock_hooks):
     """Test resource wrapper error handling."""
 
     class FailingClient:
@@ -107,7 +107,7 @@ async def test_resource_wrapper_error_handling(sample_resource_def):
             raise RuntimeError("Resource read failed")
 
     client = FailingClient()
-    wrapper = MCPResourceWrapper("test-server", sample_resource_def, client)
+    wrapper = MCPResourceWrapper("test-server", sample_resource_def, client, mock_hooks)
 
     # Execute (should handle error gracefully)
     result = await wrapper.execute({})
@@ -120,7 +120,7 @@ async def test_resource_wrapper_error_handling(sample_resource_def):
 
 
 @pytest.mark.asyncio
-async def test_resource_name_sanitization():
+async def test_resource_name_sanitization(mock_hooks):
     """Test that resource names with special characters are sanitized."""
     client = MockMCPClient()
 
@@ -131,7 +131,7 @@ async def test_resource_name_sanitization():
         "description": "Test resource",
     }
 
-    wrapper = MCPResourceWrapper("test-server", resource_def, client)
+    wrapper = MCPResourceWrapper("test-server", resource_def, client, mock_hooks)
 
     # Name should have special chars replaced
     assert "/" not in wrapper.name
@@ -140,7 +140,7 @@ async def test_resource_name_sanitization():
 
 
 @pytest.mark.asyncio
-async def test_resource_content_extraction():
+async def test_resource_content_extraction(mock_hooks):
     """Test extraction of different content formats."""
 
     class MultiContentClient:
@@ -163,7 +163,7 @@ async def test_resource_content_extraction():
         "description": "Test",
     }
 
-    wrapper = MCPResourceWrapper("test-server", resource_def, client)
+    wrapper = MCPResourceWrapper("test-server", resource_def, client, mock_hooks)
     result = await wrapper.execute({})
 
     # Should handle both text and blob

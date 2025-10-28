@@ -1,6 +1,8 @@
 """MCP Manager that orchestrates multiple MCP clients and their capabilities."""
 
 import logging
+import os
+from pathlib import Path
 from typing import Any
 
 from amplifier_module_tool_mcp.client import MCPClient
@@ -25,18 +27,32 @@ class MCPManager:
     - Provide unified registry for Amplifier
     """
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(self, config: dict[str, Any], coordinator: Any):
         """
         Initialize MCP manager.
 
         Args:
             config: Configuration dictionary (inline config from profile)
+            coordinator: Amplifier coordinator instance for hooks
         """
         self.config = MCPConfig(config)
+        self.coordinator = coordinator
         self.clients: dict[str, MCPClient | MCPStreamableHTTPClient] = {}
         self.tools: dict[str, MCPToolWrapper] = {}
         self.resources: dict[str, MCPResourceWrapper] = {}
         self.prompts: dict[str, MCPPromptWrapper] = {}
+
+        # Verbose server output configuration
+        # Default: suppress server stderr (quiet by default)
+        # Can be overridden via config or environment variable
+        self.verbose_servers = (
+            config.get("verbose_servers", False)
+            or os.environ.get("AMPLIFIER_MCP_VERBOSE", "").lower() in ("true", "1", "yes")
+        )
+
+        # Where to save server logs when suppressed
+        default_log_dir = "~/.amplifier/logs/mcp-servers/"
+        self.server_log_dir = Path(config.get("server_log_dir", default_log_dir)).expanduser()
 
     async def start(self) -> None:
         """
@@ -130,8 +146,10 @@ class MCPManager:
         # Substitute environment variables
         env = {k: MCPConfig.substitute_env_vars(v) for k, v in env.items()}
 
-        # Create and connect client
-        client = MCPClient(server_name, command, args, env)
+        # Create and connect client with verbose settings
+        client = MCPClient(
+            server_name, command, args, env, verbose_servers=self.verbose_servers, server_log_dir=self.server_log_dir
+        )
         await client.connect()
 
         # Store client and register capabilities
@@ -166,21 +184,21 @@ class MCPManager:
             server_name: Server name
             client: Connected MCP client
         """
-        # Register tools
+        # Register tools - pass hooks for event emission
         for tool_def in client.get_tools():
-            wrapper = MCPToolWrapper(server_name, tool_def, client)
+            wrapper = MCPToolWrapper(server_name, tool_def, client, self.coordinator.hooks)
             self.tools[wrapper.name] = wrapper
             logger.debug(f"Registered tool '{wrapper.name}' from server '{server_name}'")
 
-        # Register resources
+        # Register resources - pass hooks for event emission
         for resource_def in client.get_resources():
-            wrapper = MCPResourceWrapper(server_name, resource_def, client)
+            wrapper = MCPResourceWrapper(server_name, resource_def, client, self.coordinator.hooks)
             self.resources[wrapper.name] = wrapper
             logger.debug(f"Registered resource '{wrapper.name}' from server '{server_name}'")
 
-        # Register prompts
+        # Register prompts - pass hooks for event emission
         for prompt_def in client.get_prompts():
-            wrapper = MCPPromptWrapper(server_name, prompt_def, client)
+            wrapper = MCPPromptWrapper(server_name, prompt_def, client, self.coordinator.hooks)
             self.prompts[wrapper.name] = wrapper
             logger.debug(f"Registered prompt '{wrapper.name}' from server '{server_name}'")
 

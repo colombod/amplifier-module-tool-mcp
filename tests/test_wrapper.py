@@ -30,10 +30,10 @@ class MockMCPClient:
 
 
 @pytest.mark.asyncio
-async def test_wrapper_initialization(sample_tool_def):
+async def test_wrapper_initialization(sample_tool_def, mock_hooks):
     """Test tool wrapper initialization."""
     client = MockMCPClient()
-    wrapper = MCPToolWrapper("test-server", sample_tool_def, client)
+    wrapper = MCPToolWrapper("test-server", sample_tool_def, client, mock_hooks)
 
     assert wrapper.server_name == "test-server"
     assert wrapper.tool_name == "test_tool"
@@ -43,10 +43,10 @@ async def test_wrapper_initialization(sample_tool_def):
 
 
 @pytest.mark.asyncio
-async def test_wrapper_execute(sample_tool_def):
+async def test_wrapper_execute(sample_tool_def, mock_hooks):
     """Test tool execution through wrapper."""
     client = MockMCPClient()
-    wrapper = MCPToolWrapper("test-server", sample_tool_def, client)
+    wrapper = MCPToolWrapper("test-server", sample_tool_def, client, mock_hooks)
 
     # Execute tool
     result = await wrapper.execute({"input": "test"})
@@ -61,7 +61,7 @@ async def test_wrapper_execute(sample_tool_def):
 
 
 @pytest.mark.asyncio
-async def test_wrapper_error_handling(sample_tool_def):
+async def test_wrapper_error_handling(sample_tool_def, mock_hooks):
     """Test tool wrapper error handling."""
 
     class FailingClient:
@@ -69,7 +69,7 @@ async def test_wrapper_error_handling(sample_tool_def):
             raise RuntimeError("Tool execution failed")
 
     client = FailingClient()
-    wrapper = MCPToolWrapper("test-server", sample_tool_def, client)
+    wrapper = MCPToolWrapper("test-server", sample_tool_def, client, mock_hooks)
 
     # Execute tool (should handle error gracefully)
     result = await wrapper.execute({"input": "test"})

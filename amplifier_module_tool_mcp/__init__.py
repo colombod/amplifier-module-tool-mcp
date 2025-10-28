@@ -31,7 +31,7 @@ async def mount(coordinator: ModuleCoordinator, config: dict | None = None):
     Returns:
         Optional cleanup function
     """
-    manager = MCPManager(config or {})
+    manager = MCPManager(config or {}, coordinator)
     await manager.start()
 
     # Register all capabilities with the coordinator

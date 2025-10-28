@@ -30,12 +30,16 @@ providers:
 tools:
   - module: tool-mcp
     source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
-    # Optional inline config (overrides .amplifier/mcp.json)
-    # config:
-    #   servers:
-    #     my-server:
-    #       command: npx
-    #       args: ["-y", "my-mcp-server"]
+    config:
+      # Server output control (default: suppressed for clean UX)
+      verbose_servers: false  # Set to true to see MCP server debug output
+      server_log_dir: ~/.amplifier/logs/mcp-servers/  # Where server logs are saved when suppressed
+
+      # Optional inline server config (overrides .amplifier/mcp.json)
+      # servers:
+      #   my-server:
+      #     command: npx
+      #     args: ["-y", "my-mcp-server"]
 
 # Standard tools you'll want
   - module: tool-filesystem
@@ -76,13 +80,38 @@ When you use this profile, your LLM agent gets access to tools from configured M
 
 ## Configuration
 
+### MCP Server Configuration
+
 MCP servers are configured in `.amplifier/mcp.json` (see examples/mcp.json for examples).
 
 The module will look for configuration in (priority order):
-1. Inline config in this profile (uncomment the config section above)
+1. Inline config in this profile (see `servers:` section in config above)
 2. Project `.amplifier/mcp.json`
 3. User `~/.amplifier/mcp.json`
 4. Environment variable `$AMPLIFIER_MCP_CONFIG`
+
+### Server Output Control
+
+By default, MCP server debug output is suppressed for clean UX. Server logs are saved to `~/.amplifier/logs/mcp-servers/` for troubleshooting.
+
+**To see server output** (for debugging):
+
+Option 1 - Profile config:
+```yaml
+tools:
+  - module: tool-mcp
+    config:
+      verbose_servers: true
+```
+
+Option 2 - Environment variable:
+```bash
+AMPLIFIER_MCP_VERBOSE=true amplifier run --profile mcp-example "test"
+```
+
+**Server logs location** (when suppressed):
+- Default: `~/.amplifier/logs/mcp-servers/{server-name}.log`
+- Custom: Set `server_log_dir` in config
 
 ## Available MCP Servers
 

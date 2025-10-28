@@ -1,6 +1,7 @@
 """Pytest configuration and fixtures for MCP module tests."""
 
 import pytest
+from amplifier_core import HookResult
 
 
 @pytest.fixture
@@ -37,3 +38,26 @@ def sample_tool_def():
             "required": ["input"],
         },
     }
+
+
+@pytest.fixture
+def mock_hooks():
+    """Mock hooks registry for testing."""
+
+    class MockHooks:
+        async def emit(self, event: str, data: dict):
+            """Mock emit that does nothing."""
+            return HookResult(action="continue", data=data)
+
+    return MockHooks()
+
+
+@pytest.fixture
+def mock_coordinator(mock_hooks):
+    """Mock coordinator with hooks."""
+
+    class MockCoordinator:
+        def __init__(self):
+            self.hooks = mock_hooks
+
+    return MockCoordinator()

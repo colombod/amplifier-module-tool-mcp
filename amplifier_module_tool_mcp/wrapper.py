@@ -19,7 +19,7 @@ class MCPToolWrapper:
     - Tool execution proxying to MCP server
     """
 
-    def __init__(self, server_name: str, tool_def: dict[str, Any], client: Any):
+    def __init__(self, server_name: str, tool_def: dict[str, Any], client: Any, hooks: Any):
         """
         Initialize tool wrapper.
 
@@ -27,9 +27,11 @@ class MCPToolWrapper:
             server_name: Name of the MCP server providing this tool
             tool_def: Tool definition from MCP server (name, description, input_schema)
             client: MCPClient instance to use for tool execution
+            hooks: Hook registry for event emission (currently unused - orchestrator handles tool events)
         """
         self.server_name = server_name
         self.client = client
+        self.hooks = hooks
 
         # Extract tool info
         self.tool_name = tool_def["name"]
@@ -61,17 +63,17 @@ class MCPToolWrapper:
 
         Returns:
             ToolResult with success status and output/error
+
+        Note:
+            Tool execution events (TOOL_PRE, TOOL_POST, TOOL_ERROR) are emitted
+            automatically by the orchestrator. No manual event emission needed here.
         """
         try:
-            logger.info(f"Executing MCP tool '{self.name}' with input: {input}")
-
             # Call tool on MCP server
             result = await self.client.call_tool(self.tool_name, input)
 
             # Extract content from result
             output = self._extract_content(result)
-
-            logger.info(f"MCP tool '{self.name}' completed successfully")
 
             return ToolResult(success=True, output=output)
 

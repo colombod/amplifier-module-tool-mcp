@@ -48,10 +48,10 @@ def sample_prompt_def():
 
 
 @pytest.mark.asyncio
-async def test_prompt_wrapper_initialization(sample_prompt_def):
+async def test_prompt_wrapper_initialization(sample_prompt_def, mock_hooks):
     """Test prompt wrapper initialization."""
     client = MockMCPClient()
-    wrapper = MCPPromptWrapper("test-server", sample_prompt_def, client)
+    wrapper = MCPPromptWrapper("test-server", sample_prompt_def, client, mock_hooks)
 
     assert wrapper.server_name == "test-server"
     assert wrapper.prompt_name == "code_review"
@@ -61,10 +61,10 @@ async def test_prompt_wrapper_initialization(sample_prompt_def):
 
 
 @pytest.mark.asyncio
-async def test_prompt_wrapper_properties(sample_prompt_def):
+async def test_prompt_wrapper_properties(sample_prompt_def, mock_hooks):
     """Test prompt wrapper properties."""
     client = MockMCPClient()
-    wrapper = MCPPromptWrapper("test-server", sample_prompt_def, client)
+    wrapper = MCPPromptWrapper("test-server", sample_prompt_def, client, mock_hooks)
 
     # Check properties
     assert wrapper.name.startswith("mcp_test-server_prompt_")
@@ -84,10 +84,10 @@ async def test_prompt_wrapper_properties(sample_prompt_def):
 
 
 @pytest.mark.asyncio
-async def test_prompt_wrapper_execute(sample_prompt_def):
+async def test_prompt_wrapper_execute(sample_prompt_def, mock_hooks):
     """Test prompt execution through wrapper."""
     client = MockMCPClient()
-    wrapper = MCPPromptWrapper("test-server", sample_prompt_def, client)
+    wrapper = MCPPromptWrapper("test-server", sample_prompt_def, client, mock_hooks)
 
     # Execute prompt
     result = await wrapper.execute({"file_path": "src/app.py", "focus_area": "security"})
@@ -102,10 +102,10 @@ async def test_prompt_wrapper_execute(sample_prompt_def):
 
 
 @pytest.mark.asyncio
-async def test_prompt_wrapper_execute_minimal_args(sample_prompt_def):
+async def test_prompt_wrapper_execute_minimal_args(sample_prompt_def, mock_hooks):
     """Test prompt execution with only required arguments."""
     client = MockMCPClient()
-    wrapper = MCPPromptWrapper("test-server", sample_prompt_def, client)
+    wrapper = MCPPromptWrapper("test-server", sample_prompt_def, client, mock_hooks)
 
     # Execute with only required arg
     result = await wrapper.execute({"file_path": "src/app.py"})
@@ -115,7 +115,7 @@ async def test_prompt_wrapper_execute_minimal_args(sample_prompt_def):
 
 
 @pytest.mark.asyncio
-async def test_prompt_wrapper_error_handling(sample_prompt_def):
+async def test_prompt_wrapper_error_handling(sample_prompt_def, mock_hooks):
     """Test prompt wrapper error handling."""
 
     class FailingClient:
@@ -123,7 +123,7 @@ async def test_prompt_wrapper_error_handling(sample_prompt_def):
             raise RuntimeError("Prompt retrieval failed")
 
     client = FailingClient()
-    wrapper = MCPPromptWrapper("test-server", sample_prompt_def, client)
+    wrapper = MCPPromptWrapper("test-server", sample_prompt_def, client, mock_hooks)
 
     # Execute (should handle error gracefully)
     result = await wrapper.execute({"file_path": "src/app.py"})
@@ -136,7 +136,7 @@ async def test_prompt_wrapper_error_handling(sample_prompt_def):
 
 
 @pytest.mark.asyncio
-async def test_prompt_no_arguments():
+async def test_prompt_no_arguments(mock_hooks):
     """Test prompt without arguments."""
     client = MockMCPClient()
 
@@ -146,7 +146,7 @@ async def test_prompt_no_arguments():
         "arguments": [],  # No arguments
     }
 
-    wrapper = MCPPromptWrapper("test-server", prompt_def, client)
+    wrapper = MCPPromptWrapper("test-server", prompt_def, client, mock_hooks)
 
     # Schema should have no required fields
     assert wrapper.input_schema["required"] == []
@@ -158,7 +158,7 @@ async def test_prompt_no_arguments():
 
 
 @pytest.mark.asyncio
-async def test_prompt_message_extraction():
+async def test_prompt_message_extraction(mock_hooks):
     """Test extraction of prompt messages."""
 
     class ComplexMessageClient:
@@ -187,7 +187,7 @@ async def test_prompt_message_extraction():
     client = ComplexMessageClient()
     prompt_def = {"name": "test", "description": "Test", "arguments": []}
 
-    wrapper = MCPPromptWrapper("test-server", prompt_def, client)
+    wrapper = MCPPromptWrapper("test-server", prompt_def, client, mock_hooks)
     result = await wrapper.execute({})
 
     # Should extract both messages

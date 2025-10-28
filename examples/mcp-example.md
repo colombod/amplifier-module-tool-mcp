@@ -14,12 +14,14 @@ session:
 # Use your preferred provider
 providers:
   - module: provider-anthropic
+    source: git+https://github.com/microsoft/amplifier-module-provider-anthropic@main
     config:
       priority: 1
       default_model: claude-sonnet-4-5
 
 # Or use OpenAI
 #  - module: provider-openai
+#    source: git+https://github.com/microsoft/amplifier-module-provider-openai@main
 #    config:
 #      priority: 1
 #      default_model: gpt-4
@@ -37,7 +39,9 @@ tools:
 
 # Standard tools you'll want
   - module: tool-filesystem
+    source: git+https://github.com/microsoft/amplifier-module-tool-filesystem@main
   - module: tool-bash
+    source: git+https://github.com/microsoft/amplifier-module-tool-bash@main
 ---
 
 # Example Profile with MCP Tools

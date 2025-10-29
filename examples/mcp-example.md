@@ -7,8 +7,10 @@ profile:
 
 session:
   orchestrator:
-    module: loop-basic
-    source: git+https://github.com/microsoft/amplifier-module-loop-basic@main
+    module: loop-streaming
+    source: git+https://github.com/microsoft/amplifier-module-loop-streaming@main
+    config:
+      extended_thinking: true
   context:
     module: context-simple
     source: git+https://github.com/microsoft/amplifier-module-context-simple@main

@@ -77,7 +77,9 @@ async def test_resource_wrapper_execute_default_uri(sample_resource_def, mock_ho
     # Verify result is ToolResult
     assert isinstance(result, ToolResult)
     assert result.success is True
-    assert "file:///workspace/README.md" in result.output
+    assert isinstance(result.output, dict)
+    assert "content" in result.output
+    assert "file:///workspace/README.md" in result.output["content"]
 
     # Verify client was called
     assert client.call_count == 1
@@ -168,5 +170,7 @@ async def test_resource_content_extraction(mock_hooks):
 
     # Should handle both text and blob
     assert result.success
-    assert "Text part" in result.output
-    assert "Binary content" in result.output or "blob" in result.output.lower()
+    assert isinstance(result.output, dict)
+    assert "content" in result.output
+    assert "Text part" in result.output["content"]
+    assert "Binary content" in result.output["content"] or "blob" in result.output["content"].lower()

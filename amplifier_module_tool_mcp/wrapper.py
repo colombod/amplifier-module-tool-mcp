@@ -73,9 +73,10 @@ class MCPToolWrapper:
             result = await self.client.call_tool(self.tool_name, input)
 
             # Extract content from result
-            output = self._extract_content(result)
+            content = self._extract_content(result)
 
-            return ToolResult(success=True, output=output)
+            # ToolResult.output must be a dict, not a string
+            return ToolResult(success=True, output={"content": content})
 
         except Exception as e:
             logger.error(f"MCP tool '{self.name}' failed: {e}")

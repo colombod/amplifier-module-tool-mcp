@@ -91,8 +91,7 @@ class MCPPromptWrapper:
             # Extract messages from result
             messages = self._extract_messages(result)
 
-            # ToolResult.output must be a dict, not a string
-            return ToolResult(success=True, output={"prompt": self.prompt_name, "messages": messages})
+            return ToolResult(success=True, output=messages)
 
         except Exception as e:
             logger.error(f"MCP prompt '{self.name}' retrieval failed: {e}")

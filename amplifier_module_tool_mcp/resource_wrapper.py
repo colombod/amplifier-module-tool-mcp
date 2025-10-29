@@ -91,8 +91,7 @@ class MCPResourceWrapper:
             # Extract content from result
             content = self._extract_content(result)
 
-            # ToolResult.output must be a dict, not a string
-            return ToolResult(success=True, output={"uri": uri, "content": content})
+            return ToolResult(success=True, output=content)
 
         except Exception as e:
             logger.error(f"MCP resource '{self.name}' read failed: {e}")

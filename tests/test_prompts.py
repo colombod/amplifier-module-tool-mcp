@@ -95,9 +95,7 @@ async def test_prompt_wrapper_execute(sample_prompt_def, mock_hooks):
     # Verify result is ToolResult
     assert isinstance(result, ToolResult)
     assert result.success is True
-    assert isinstance(result.output, dict)
-    assert "messages" in result.output
-    assert "code_review" in result.output["messages"]
+    assert "code_review" in result.output
     assert client.call_count == 1
     assert client.last_prompt_name == "code_review"
     assert client.last_arguments == {"file_path": "src/app.py", "focus_area": "security"}
@@ -194,9 +192,7 @@ async def test_prompt_message_extraction(mock_hooks):
 
     # Should extract both messages
     assert result.success
-    assert isinstance(result.output, dict)
-    assert "messages" in result.output
-    assert "[system]" in result.output["messages"]
-    assert "System message" in result.output["messages"]
-    assert "[user]" in result.output["messages"]
-    assert "User message" in result.output["messages"]
+    assert "[system]" in result.output
+    assert "System message" in result.output
+    assert "[user]" in result.output
+    assert "User message" in result.output

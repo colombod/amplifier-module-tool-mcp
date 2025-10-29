@@ -45,6 +45,10 @@ tools:
     source: git+https://github.com/microsoft/amplifier-module-tool-filesystem@main
   - module: tool-bash
     source: git+https://github.com/microsoft/amplifier-module-tool-bash@main
+
+hooks:
+  - module: hooks-streaming-ui
+    source: git+https://github.com/microsoft/amplifier-module-hooks-streaming-ui@main
 ---
 
 # Example Profile with MCP Tools

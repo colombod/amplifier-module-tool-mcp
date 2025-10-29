@@ -54,7 +54,9 @@ async def test_wrapper_execute(sample_tool_def, mock_hooks):
     # Verify result is ToolResult
     assert isinstance(result, ToolResult)
     assert result.success is True
-    assert "Mock tool output" in result.output
+    assert isinstance(result.output, dict)
+    assert "content" in result.output
+    assert "Mock tool output" in result.output["content"]
     assert client.call_count == 1
     assert client.last_tool_name == "test_tool"
     assert client.last_arguments == {"input": "test"}

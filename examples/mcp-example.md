@@ -1,6 +1,6 @@
 ---
 profile:
-  name: example-mcp
+  name: mcp-example
   version: "1.0.0"
   description: "Example profile with MCP tools enabled"
   extends: base
@@ -8,10 +8,11 @@ profile:
 session:
   orchestrator:
     module: loop-basic
+    source: git+https://github.com/microsoft/amplifier-module-loop-basic@main
   context:
     module: context-simple
+    source: git+https://github.com/microsoft/amplifier-module-context-simple@main
 
-# Use your preferred provider
 providers:
   - module: provider-anthropic
     source: git+https://github.com/microsoft/amplifier-module-provider-anthropic@main
@@ -26,7 +27,6 @@ providers:
 #      priority: 1
 #      default_model: gpt-4
 
-# Add MCP tools
 tools:
   - module: tool-mcp
     source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
@@ -41,7 +41,6 @@ tools:
       #     command: npx
       #     args: ["-y", "my-mcp-server"]
 
-# Standard tools you'll want
   - module: tool-filesystem
     source: git+https://github.com/microsoft/amplifier-module-tool-filesystem@main
   - module: tool-bash

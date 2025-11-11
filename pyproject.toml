@@ -12,7 +12,7 @@ dependencies = [
     "pydantic>=2.0",
 ]
 
-[project.entry-points."amplifier.tools"]
+[project.entry-points."amplifier.modules"]
 tool-mcp = "amplifier_module_tool_mcp:mount"
 
 [build-system]

@@ -76,11 +76,26 @@ class MCPToolWrapper:
             content = self._extract_content(result)
 
             # ToolResult.output must be a dict, not a string
-            return ToolResult(success=True, output={"content": content})
+            # Include MCP metadata for better log viewer experience
+            return ToolResult(
+                success=True,
+                output={
+                    "content": content,
+                    "mcp_server": self.server_name,
+                    "mcp_tool": self.tool_name,
+                },
+            )
 
         except Exception as e:
             logger.error(f"MCP tool '{self.name}' failed: {e}")
-            return ToolResult(success=False, error={"message": str(e)})
+            return ToolResult(
+                success=False,
+                error={
+                    "message": str(e),
+                    "mcp_server": self.server_name,
+                    "mcp_tool": self.tool_name,
+                },
+            )
 
     def _extract_content(self, result: Any) -> str:
         """

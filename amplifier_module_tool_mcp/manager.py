@@ -7,6 +7,7 @@ from typing import Any
 
 from amplifier_module_tool_mcp.client import MCPClient
 from amplifier_module_tool_mcp.config import MCPConfig
+from amplifier_module_tool_mcp.content_utils import DEFAULT_MAX_CONTENT_SIZE
 from amplifier_module_tool_mcp.prompt_wrapper import MCPPromptWrapper
 from amplifier_module_tool_mcp.resource_wrapper import MCPResourceWrapper
 from amplifier_module_tool_mcp.streamable_http_client import MCPStreamableHTTPClient
@@ -53,6 +54,10 @@ class MCPManager:
         # Where to save server logs when suppressed
         default_log_dir = "~/.amplifier/logs/mcp-servers/"
         self.server_log_dir = Path(config.get("server_log_dir", default_log_dir)).expanduser()
+
+        # Content size limit to prevent context exhaustion
+        self.max_content_size = config.get("max_content_size", DEFAULT_MAX_CONTENT_SIZE)
+        logger.debug(f"Content size limit: {self.max_content_size:,} characters")
 
     async def start(self) -> None:
         """
@@ -184,21 +189,27 @@ class MCPManager:
             server_name: Server name
             client: Connected MCP client
         """
-        # Register tools - pass hooks for event emission
+        # Register tools - pass hooks for event emission and content size limit
         for tool_def in client.get_tools():
-            wrapper = MCPToolWrapper(server_name, tool_def, client, self.coordinator.hooks)
+            wrapper = MCPToolWrapper(
+                server_name, tool_def, client, self.coordinator.hooks, max_content_size=self.max_content_size
+            )
             self.tools[wrapper.name] = wrapper
             logger.debug(f"Registered tool '{wrapper.name}' from server '{server_name}'")
 
-        # Register resources - pass hooks for event emission
+        # Register resources - pass hooks for event emission and content size limit
         for resource_def in client.get_resources():
-            wrapper = MCPResourceWrapper(server_name, resource_def, client, self.coordinator.hooks)
+            wrapper = MCPResourceWrapper(
+                server_name, resource_def, client, self.coordinator.hooks, max_content_size=self.max_content_size
+            )
             self.resources[wrapper.name] = wrapper
             logger.debug(f"Registered resource '{wrapper.name}' from server '{server_name}'")
 
-        # Register prompts - pass hooks for event emission
+        # Register prompts - pass hooks for event emission and content size limit
         for prompt_def in client.get_prompts():
-            wrapper = MCPPromptWrapper(server_name, prompt_def, client, self.coordinator.hooks)
+            wrapper = MCPPromptWrapper(
+                server_name, prompt_def, client, self.coordinator.hooks, max_content_size=self.max_content_size
+            )
             self.prompts[wrapper.name] = wrapper
             logger.debug(f"Registered prompt '{wrapper.name}' from server '{server_name}'")
 

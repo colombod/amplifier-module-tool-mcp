@@ -65,6 +65,9 @@ tools:
       # Server output control
       verbose_servers: false  # Default: suppress MCP server debug output
       server_log_dir: ~/.amplifier/logs/mcp-servers/  # Where logs are saved when suppressed
+      
+      # Content size protection (prevents context exhaustion)
+      max_content_size: 50000  # Default: 50k chars (~12k tokens)
 
       # Optional inline server config (overrides .amplifier/mcp.json)
       servers:
@@ -79,6 +82,7 @@ tools:
 |--------|---------|-------------|
 | `verbose_servers` | `false` | Show MCP server stderr output in console |
 | `server_log_dir` | `~/.amplifier/logs/mcp-servers/` | Directory for server logs when suppressed |
+| `max_content_size` | `50000` | Maximum content size in characters. Content exceeding this limit is automatically truncated with a notice to prevent context window exhaustion |
 | `servers` | (optional) | Inline server configuration (overrides .amplifier/mcp.json) |
 
 **Environment variable override**:

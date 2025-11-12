@@ -5,6 +5,12 @@ from typing import Any
 
 from amplifier_core import ToolResult
 
+from amplifier_module_tool_mcp.content_utils import (
+    DEFAULT_MAX_CONTENT_SIZE,
+    extract_text_from_mcp_content,
+    truncate_content_if_needed,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +25,14 @@ class MCPToolWrapper:
     - Tool execution proxying to MCP server
     """
 
-    def __init__(self, server_name: str, tool_def: dict[str, Any], client: Any, hooks: Any):
+    def __init__(
+        self,
+        server_name: str,
+        tool_def: dict[str, Any],
+        client: Any,
+        hooks: Any,
+        max_content_size: int = DEFAULT_MAX_CONTENT_SIZE,
+    ):
         """
         Initialize tool wrapper.
 
@@ -28,10 +41,12 @@ class MCPToolWrapper:
             tool_def: Tool definition from MCP server (name, description, input_schema)
             client: MCPClient instance to use for tool execution
             hooks: Hook registry for event emission (currently unused - orchestrator handles tool events)
+            max_content_size: Maximum content size in characters to prevent context exhaustion
         """
         self.server_name = server_name
         self.client = client
         self.hooks = hooks
+        self.max_content_size = max_content_size
 
         # Extract tool info
         self.tool_name = tool_def["name"]
@@ -72,8 +87,8 @@ class MCPToolWrapper:
             # Call tool on MCP server
             result = await self.client.call_tool(self.tool_name, input)
 
-            # Extract content from result
-            content = self._extract_content(result)
+            # Extract content from result with size protection
+            content, was_truncated = self._extract_content(result)
 
             # ToolResult.output must be a dict, not a string
             # Include MCP metadata for better log viewer experience
@@ -83,6 +98,8 @@ class MCPToolWrapper:
                     "content": content,
                     "mcp_server": self.server_name,
                     "mcp_tool": self.tool_name,
+                    "content_size_chars": len(content),
+                    "content_truncated": was_truncated,
                 },
             )
 
@@ -97,27 +114,29 @@ class MCPToolWrapper:
                 },
             )
 
-    def _extract_content(self, result: Any) -> str:
+    def _extract_content(self, result: Any) -> tuple[str, bool]:
         """
-        Extract content from MCP tool result.
+        Extract content from MCP tool result with size protection.
 
         Args:
             result: Raw result from MCP server
 
         Returns:
-            String representation of the result
+            Tuple of (content_string, was_truncated)
         """
-        # Handle different result formats
+        # Extract raw content
         if hasattr(result, "content"):
             # Result with content attribute (standard MCP format)
-            content_items = result.content
-            if isinstance(content_items, list):
-                # Join multiple content items
-                return "\n".join(str(item.text) if hasattr(item, "text") else str(item) for item in content_items)
-            return str(content_items)
+            raw_content = extract_text_from_mcp_content(result.content)
+        else:
+            # Fallback: convert to string
+            raw_content = str(result)
 
-        # Fallback: convert to string
-        return str(result)
+        # Apply size limit with truncation if needed
+        context_info = f"MCP tool '{self.name}'"
+        content, was_truncated = truncate_content_if_needed(raw_content, self.max_content_size, context_info)
+
+        return content, was_truncated
 
     def __repr__(self) -> str:
         """String representation."""

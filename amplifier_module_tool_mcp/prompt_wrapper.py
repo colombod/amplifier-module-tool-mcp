@@ -5,6 +5,11 @@ from typing import Any
 
 from amplifier_core import ToolResult
 
+from amplifier_module_tool_mcp.content_utils import (
+    DEFAULT_MAX_CONTENT_SIZE,
+    truncate_content_if_needed,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,7 +21,14 @@ class MCPPromptWrapper:
     We wrap them as tools so they can be called by the LLM.
     """
 
-    def __init__(self, server_name: str, prompt_def: dict[str, Any], client: Any, hooks: Any):
+    def __init__(
+        self,
+        server_name: str,
+        prompt_def: dict[str, Any],
+        client: Any,
+        hooks: Any,
+        max_content_size: int = DEFAULT_MAX_CONTENT_SIZE,
+    ):
         """
         Initialize prompt wrapper.
 
@@ -25,10 +37,12 @@ class MCPPromptWrapper:
             prompt_def: Prompt definition (name, description, arguments)
             client: MCPClient instance to use for prompt retrieval
             hooks: Hook registry for event emission (currently unused - orchestrator handles tool events)
+            max_content_size: Maximum content size in characters to prevent context exhaustion
         """
         self.server_name = server_name
         self.client = client
         self.hooks = hooks
+        self.max_content_size = max_content_size
 
         # Extract prompt info
         self.prompt_name = prompt_def["name"]
@@ -88,8 +102,8 @@ class MCPPromptWrapper:
             # Get prompt from MCP server
             result = await self.client.get_prompt(self.prompt_name, input)
 
-            # Extract messages from result
-            messages = self._extract_messages(result)
+            # Extract messages from result with size protection
+            messages, was_truncated = self._extract_messages(result)
 
             # ToolResult.output must be a dict, not a string
             # Include MCP metadata for better log viewer experience
@@ -100,6 +114,8 @@ class MCPPromptWrapper:
                     "messages": messages,
                     "mcp_server": self.server_name,
                     "mcp_prompt": self.prompt_name,
+                    "content_size_chars": len(messages),
+                    "content_truncated": was_truncated,
                 },
             )
 
@@ -114,17 +130,17 @@ class MCPPromptWrapper:
                 },
             )
 
-    def _extract_messages(self, result: Any) -> str:
+    def _extract_messages(self, result: Any) -> tuple[str, bool]:
         """
-        Extract messages from MCP prompt result.
+        Extract messages from MCP prompt result with size protection.
 
         Args:
             result: Raw result from MCP server
 
         Returns:
-            Formatted prompt messages
+            Tuple of (formatted_messages, was_truncated)
         """
-        # Handle different result formats
+        # Extract raw messages
         if hasattr(result, "messages"):
             # Result with messages attribute
             messages = result.messages
@@ -144,11 +160,18 @@ class MCPPromptWrapper:
 
                     parts.append(f"[{role}]\n{text}")
 
-                return "\n\n".join(parts)
-            return str(messages)
+                raw_messages = "\n\n".join(parts)
+            else:
+                raw_messages = str(messages)
+        else:
+            # Fallback: convert to string
+            raw_messages = str(result)
 
-        # Fallback: convert to string
-        return str(result)
+        # Apply size limit with truncation if needed
+        context_info = f"MCP prompt '{self.name}'"
+        messages, was_truncated = truncate_content_if_needed(raw_messages, self.max_content_size, context_info)
+
+        return messages, was_truncated
 
     def __repr__(self) -> str:
         """String representation."""

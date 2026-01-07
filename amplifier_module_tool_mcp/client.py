@@ -88,6 +88,9 @@ class MCPClient:
         self.server_log_dir = server_log_dir or Path("~/.amplifier/logs/mcp-servers/").expanduser()
         self._server_log_file = None
 
+        # Connection lock for thread-safe lazy connection
+        self._connect_lock = asyncio.Lock()
+
     @property
     def state(self) -> ConnectionState:
         """Get current connection state."""
@@ -120,16 +123,18 @@ class MCPClient:
 
     async def connect(self) -> None:
         """Connect to the MCP server and discover tools."""
-        if self.is_connected:
-            return
+        # Thread-safe lazy connection
+        async with self._connect_lock:
+            if self.is_connected:
+                return
 
-        # Check circuit breaker
-        if self._circuit_breaker.is_open():
-            logger.warning(f"Circuit breaker is OPEN for '{self.server_name}' - blocking connection attempt")
-            raise RuntimeError(f"Circuit breaker is OPEN for server '{self.server_name}' - too many recent failures")
+            # Check circuit breaker
+            if self._circuit_breaker.is_open():
+                logger.warning(f"Circuit breaker is OPEN for '{self.server_name}' - blocking connection attempt")
+                raise RuntimeError(f"Circuit breaker is OPEN for server '{self.server_name}' - too many recent failures")
 
-        self._state = ConnectionState.CONNECTING
-        self._connection_attempts += 1
+            self._state = ConnectionState.CONNECTING
+            self._connection_attempts += 1
 
         try:
             # Create server parameters with inherited environment
@@ -160,7 +165,8 @@ class MCPClient:
                 env=merged_env,
             )
 
-            # Use AsyncExitStack to manage context managers and keep connection alive
+            # Create exit stack and enter the context managers
+            # Keep the connection alive by not exiting the context managers
             self._exit_stack = AsyncExitStack()
 
             # Enter stdio_client context
@@ -195,9 +201,13 @@ class MCPClient:
             self._last_error = e
             self._circuit_breaker.record_failure()
 
-            # Clean up on error
+            # Abandon the exit stack without calling aclose()
+            # The MCP library creates async generators with background tasks managed by anyio
+            # task groups. When aclose() is called, it triggers cleanup in these generators
+            # which tries to exit cancel scopes in a different task than they were entered,
+            # causing "Attempted to exit cancel scope in a different task" errors.
+            # By abandoning the references, Python's process exit will handle cleanup naturally.
             if self._exit_stack:
-                await self._exit_stack.aclose()
                 self._exit_stack = None
 
             # Close log file if opened
@@ -368,37 +378,27 @@ class MCPClient:
         """
         Disconnect from the MCP server.
 
-        Note: Cleanup may fail when called across task boundaries due to
-        anyio cancel scope management. This is acceptable as connections
-        will close when the process exits.
+        Note: We abandon the exit stack without calling aclose() to avoid async
+        generator and task boundary errors. The MCP library's async generators create
+        background tasks that must be entered/exited in the same task. Process exit
+        will handle cleanup naturally.
         """
         if self._state == ConnectionState.DISCONNECTED:
             return
 
         self._state = ConnectionState.DISCONNECTING
 
+        # Abandon the exit stack without calling aclose()
         if self._exit_stack:
-            try:
-                await self._exit_stack.aclose()
-                logger.info(f"Disconnected from MCP server '{self.server_name}'")
-            except (RuntimeError, asyncio.CancelledError) as e:
-                # Suppress cancel scope and task boundary errors
-                # Connections will close on process exit anyway
-                logger.debug(f"Suppressed cleanup error for '{self.server_name}': {type(e).__name__}")
-            except Exception as e:
-                # Log unexpected errors but don't crash
-                logger.warning(f"Unexpected error disconnecting from '{self.server_name}': {e}")
-            finally:
-                self._exit_stack = None
-                self.session = None
+            self._exit_stack = None
+            self.session = None
 
         # Close server log file if we opened one
         if self._server_log_file:
             try:
                 self._server_log_file.close()
-                logger.debug(f"Closed log file for server '{self.server_name}'")
-            except Exception as e:
-                logger.debug(f"Error closing log file for '{self.server_name}': {e}")
+            except Exception:
+                pass
             finally:
                 self._server_log_file = None
 

@@ -16,7 +16,7 @@ from amplifier_core import ModuleCoordinator
 
 from amplifier_module_tool_mcp.manager import MCPManager
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 __all__ = ["mount", "MCPManager"]
 
 logger = logging.getLogger(__name__)
@@ -34,21 +34,28 @@ async def mount(coordinator: ModuleCoordinator, config: dict[str, Any] | None = 
 
     Returns:
         None
+
+    Note:
+        MCP connections use AsyncExitStack context managers that must be closed
+        in the same async context they were created in. Therefore, we cannot
+        return a cleanup function to be called later - the connections will be
+        cleaned up when the process exits naturally.
     """
     manager = MCPManager(config or {}, coordinator)
     await manager.start()
 
-    # Register all capabilities with the coordinator
-    capabilities = manager.get_all_capabilities()
+    # Get all capabilities (this triggers lazy connection to all servers)
+    capabilities = await manager.get_all_capabilities()
 
+    # Register capabilities with the coordinator
     for cap_name, cap_wrapper in capabilities.items():
         await coordinator.mount("tools", cap_wrapper, name=cap_name)
         logger.debug(f"Mounted MCP capability: {cap_name}")
 
     # Log summary
-    tools = manager.get_tools()
-    resources = manager.get_resources()
-    prompts = manager.get_prompts()
+    tools = await manager.get_tools()
+    resources = await manager.get_resources()
+    prompts = await manager.get_prompts()
 
     logger.info(
         f"MCP module mounted: {len(tools)} tools, {len(resources)} resources, "

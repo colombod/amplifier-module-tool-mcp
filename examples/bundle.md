@@ -6,7 +6,24 @@ bundle:
 
 includes:
   - bundle: git+https://github.com/microsoft/amplifier-foundation@main
-  - bundle: git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
+
+tools:
+  - module: tool-mcp
+    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
+    config:
+      servers:
+        repomix:
+          command: npx
+          args: ["-y", "repomix", "--mcp"]
+        context7:
+          command: npx
+          args: ["-y", "@upstash/context7-mcp"]
+        zen:
+          command: uvx
+          args: ["--from", "git+https://github.com/BeehiveInnovations/zen-mcp-server.git", "zen-mcp-server"]
+        deepwiki:
+          type: streamable-http
+          url: https://mcp.deepwiki.com/mcp
 ---
 
 You are an AI assistant with MCP server capabilities enabled.

@@ -6,19 +6,23 @@ capabilities (tools, resources, prompts) to LLM agents through the standard
 Amplifier interface.
 """
 
+# Amplifier module metadata
+__amplifier_module_type__ = "tool"
+
 import logging
+from typing import Any
 
 from amplifier_core import ModuleCoordinator
 
 from amplifier_module_tool_mcp.manager import MCPManager
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = ["mount", "MCPManager"]
 
 logger = logging.getLogger(__name__)
 
 
-async def mount(coordinator: ModuleCoordinator, config: dict | None = None):
+async def mount(coordinator: ModuleCoordinator, config: dict[str, Any] | None = None) -> None:
     """
     Mount the MCP tool module.
 
@@ -29,7 +33,7 @@ async def mount(coordinator: ModuleCoordinator, config: dict | None = None):
         config: Configuration dictionary with optional 'servers' key
 
     Returns:
-        Optional cleanup function
+        None
     """
     manager = MCPManager(config or {}, coordinator)
     await manager.start()
@@ -50,10 +54,3 @@ async def mount(coordinator: ModuleCoordinator, config: dict | None = None):
         f"MCP module mounted: {len(tools)} tools, {len(resources)} resources, "
         f"{len(prompts)} prompts from {len(manager.get_server_names())} servers"
     )
-
-    # Return cleanup function
-    async def cleanup():
-        logger.info("Cleaning up MCP module...")
-        await manager.stop()
-
-    return cleanup

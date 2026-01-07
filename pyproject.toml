@@ -1,13 +1,14 @@
 [project]
 name = "amplifier-module-tool-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP (Model Context Protocol) tool module for Amplifier"
+license = "MIT"
+readme = "README.md"
 requires-python = ">=3.11"
 authors = [
     { name = "Brian Krabach" },
 ]
 dependencies = [
-    "amplifier-core",
     "mcp>=1.0.0",
     "pydantic>=2.0",
 ]
@@ -30,6 +31,7 @@ allow-direct-references = true
 
 [dependency-groups]
 dev = [
+    "amplifier-core",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-timeout>=2.2",
@@ -37,3 +39,8 @@ dev = [
 
 [tool.uv.sources]
 amplifier-core = { git = "https://github.com/microsoft/amplifier-core", branch = "main" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib"
+asyncio_mode = "strict"

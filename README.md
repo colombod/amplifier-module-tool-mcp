@@ -1,7 +1,7 @@
 # Amplifier MCP Tool Module
 
-**Status**: ✅ Production Alpha - Fully Functional  
-**Version**: 0.1.0  
+**Status**: ✅ Production Ready  
+**Version**: 0.2.0  
 **Test Coverage**: 29/29 passing (100%)
 
 MCP (Model Context Protocol) integration for Amplifier, enabling connection to MCP servers and exposing their capabilities (Tools, Resources, Prompts) to LLM agents.
@@ -23,12 +23,30 @@ MCP (Model Context Protocol) integration for Amplifier, enabling connection to M
 
 ---
 
+## Prerequisites
+
+**Required**: Install [UV](https://docs.astral.sh/uv/) for package management:
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
 ## Installation
+
+### For Development
 
 ```bash
 cd amplifier-module-tool-mcp
-uv pip install -e .
+uv sync
 ```
+
+### As a Bundle Behavior
+
+The module is designed to be used as a bundle behavior. See the [Usage](#usage) section below.
 
 ---
 
@@ -55,9 +73,10 @@ Create `.amplifier/mcp.json`:
 
 ### Module Configuration Options
 
-Configure in your profile:
+The module can be configured via bundle behavior or direct module inclusion:
 
 ```yaml
+# In your bundle.md or as a behavior
 tools:
   - module: tool-mcp
     source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
@@ -87,8 +106,8 @@ tools:
 
 **Environment variable override**:
 ```bash
-# Enable verbose output without changing profile
-AMPLIFIER_MCP_VERBOSE=true amplifier run --profile mcp-example "test"
+# Enable verbose output without changing bundle config
+AMPLIFIER_MCP_VERBOSE=true amplifier run "test"
 ```
 
 **When to use verbose mode**:
@@ -105,48 +124,60 @@ AMPLIFIER_MCP_VERBOSE=true amplifier run --profile mcp-example "test"
 
 ## Usage
 
-Add to your Amplifier profile (`.amplifier/profiles/my-profile.md`):
+### Using the Pre-configured Behavior
+
+The easiest way to use this module is through the included behavior:
+
+```bash
+# Add the behavior to your bundle registry
+amplifier bundle add git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
+
+# Use it in your bundle.md
+---
+bundle:
+  name: my-bundle
+  version: 1.0.0
+
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-foundation@main
+  - bundle: git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
+---
+
+# Your bundle instructions here
+```
+
+### Direct Module Integration
+
+You can also add the module directly to your bundle:
 
 ```yaml
 ---
-profile:
-  name: my-profile
-  extends: base
+bundle:
+  name: my-bundle
+  version: 1.0.0
 
-session:
-  orchestrator:
-    module: loop-basic
-  context:
-    module: context-simple
-
-providers:
-  - module: provider-anthropic
-    source: git+https://github.com/microsoft/amplifier-module-provider-anthropic@main
-    config:
-      priority: 1
-      default_model: claude-sonnet-4-5
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-foundation@main
 
 tools:
   - module: tool-mcp
     source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
     config:
-      verbose_servers: false  # Optional: set to true to see server debug output
-  - module: tool-filesystem
-    source: git+https://github.com/microsoft/amplifier-module-tool-filesystem@main
-  - module: tool-bash
-    source: git+https://github.com/microsoft/amplifier-module-tool-bash@main
+      verbose_servers: false
+      max_content_size: 50000
 ---
 
-# My Profile with MCP
-
-Your profile documentation goes here...
+# Your bundle instructions here
 ```
 
-Then use with Amplifier:
+### Running with MCP
 
 ```bash
-# Use the profile by name (from the name: field in the file)
-amplifier run --profile my-profile "What MCP tools do you have?"
+# Set your bundle as current
+amplifier bundle use my-bundle
+
+# Run Amplifier (it will use MCP servers configured in .amplifier/mcp.json)
+amplifier run "What MCP tools do you have?"
 ```
 
 ---

@@ -52,5 +52,11 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Development artifacts (keep locally but don't commit)
+ai_working/
+FINAL_SUMMARY.md
+CONTENT_SIZE_PROTECTION.md
+docs/
+
 # uv
 uv.lock

@@ -1,0 +1,21 @@
+bundle:
+  name: behavior-mcp
+  version: 0.2.0
+  description: Model Context Protocol integration for MCP servers
+
+tools:
+  - module: tool-mcp
+    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
+    config:
+      # Server output control
+      verbose_servers: false  # Default: suppress MCP server debug output
+      server_log_dir: ~/.amplifier/logs/mcp-servers/  # Where logs are saved when suppressed
+      
+      # Content size protection (prevents context exhaustion)
+      max_content_size: 50000  # Default: 50k chars (~12k tokens)
+      
+      # Optional inline server config (overrides .amplifier/mcp.json)
+      # servers:
+      #   my-server:
+      #     command: npx
+      #     args: ["-y", "my-mcp-server"]

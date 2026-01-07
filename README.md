@@ -1,82 +1,178 @@
 # Amplifier MCP Tool Module
 
-**Status**: ✅ Production Ready  
-**Version**: 0.2.0  
-**Test Coverage**: 29/29 passing (100%)
+Modular capability that adds Model Context Protocol (MCP) server integration to Amplifier bundles.
 
-MCP (Model Context Protocol) integration for Amplifier, enabling connection to MCP servers and exposing their capabilities (Tools, Resources, Prompts) to LLM agents.
+## Overview
 
----
+This module enables Amplifier to connect to MCP servers and expose their capabilities (Tools, Resources, Prompts) to LLM agents. Connect to any MCP-compatible server and make its tools available to your AI agents.
 
-## Features
+**What You Get:**
+- 🔌 **Multi-server orchestration** - Connect to multiple MCP servers simultaneously
+- 🚀 **Dual transport support** - stdio and Streamable HTTP (2025-03-26 MCP spec)
+- 🔄 **Auto-reconnection** - Exponential backoff with circuit breaker for resilience
+- 🛡️ **Content protection** - Automatic truncation to prevent context exhaustion
+- 📊 **Health monitoring** - Track server status and connection health
+- 🔇 **Clean console** - Server logs saved to files, not cluttering output
 
-- ✅ stdio and Streamable HTTP transport support (2025-03-26 MCP spec)
-- ✅ Tools, Resources, and Prompts discovery
-- ✅ Multi-server orchestration
-- ✅ Environment variable inheritance
-- ✅ Reconnection with exponential backoff
-- ✅ Circuit breaker for failing servers
-- ✅ Health monitoring
-- ✅ Logging support
+**Production Proven:** 60 capabilities from 5 MCP servers (41 tools + 19 prompts)
 
-**Currently Working**: 60 capabilities from 5 MCP servers (41 tools + 19 prompts)
+**Status:** ✅ Production Ready | **Version:** 0.2.0 | **Tests:** 46/46 passing
 
 ---
 
 ## Prerequisites
 
-**Required**: Install [UV](https://docs.astral.sh/uv/) for package management:
+- **Python 3.11+**
+- **[UV](https://github.com/astral-sh/uv)** - Fast Python package manager
+
+### Installing UV
 
 ```bash
-# macOS/Linux
+# macOS/Linux/WSL
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Windows
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 ## Installation
 
-### For Development
+### Recommended: Include the Behavior
+
+Add MCP capability to your bundle by including the behavior:
+
+```yaml
+---
+bundle:
+  name: my-bundle
+  version: 1.0.0
+  description: My custom bundle with MCP support
+
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-foundation@main
+  - bundle: git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
+---
+
+# Your bundle instructions...
+```
+
+**What this gives you:**
+- ✅ MCP tool module configured with production defaults
+- ✅ Content size protection enabled (50k char limit)
+- ✅ Clean console output (server logs saved to files)
+- ✅ Automatic server discovery from `.amplifier/mcp.json`
+- ✅ Clean dependency chain (no redundant includes)
+
+**Why this pattern?**
+- You control your foundation version
+- Explicit about what capabilities you're adding
+- Production-ready defaults out of the box
+- Easy to customize configuration if needed
+
+### Alternative: Direct Module Integration
+
+You can also add the module directly with custom configuration:
+
+```yaml
+---
+bundle:
+  name: my-bundle
+  version: 1.0.0
+
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-foundation@main
+
+tools:
+  - module: tool-mcp
+    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
+    config:
+      verbose_servers: true  # Custom: show server output
+      max_content_size: 100000  # Custom: larger content limit
+---
+
+# Your bundle instructions...
+```
+
+### For Module Development
+
+If you're developing the tool-mcp module itself:
 
 ```bash
 cd amplifier-module-tool-mcp
 uv sync
 ```
 
-### As a Bundle Behavior
-
-The module is designed to be used as a bundle behavior. See the [Usage](#usage) section below.
-
 ---
 
-## Configuration
+## Quick Start
 
-### Server Configuration
+### 1. Add MCP to Your Bundle
+
+```yaml
+# your-bundle.md
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-foundation@main
+  - bundle: git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
+```
+
+### 2. Configure MCP Servers
 
 Create `.amplifier/mcp.json`:
 
 ```json
 {
   "mcpServers": {
-    "repomix": {
+    "postgres": {
       "command": "npx",
-      "args": ["-y", "repomix", "--mcp"]
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "${DATABASE_URL}"
+      }
     },
-    "zen": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/BeehiveInnovations/zen-mcp-server.git", "zen-mcp-server"]
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
     }
   }
 }
 ```
+
+**Popular MCP Servers:**
+- `@modelcontextprotocol/server-postgres` - PostgreSQL database operations
+- `@modelcontextprotocol/server-puppeteer` - Web automation and scraping
+- `@modelcontextprotocol/server-sqlite` - SQLite database operations
+- `@modelcontextprotocol/server-brave-search` - Web search via Brave API
+- See [MCP Server Registry](https://github.com/modelcontextprotocol/servers) for more
+
+**Note:** Amplifier's built-in filesystem and bash tools are recommended for file operations and shell commands rather than MCP filesystem servers.
+
+### 3. Use Your Bundle
+
+```bash
+amplifier bundle use your-bundle.md
+amplifier run "What MCP tools are available?"
+```
+
+The agent will automatically discover and use tools from your configured MCP servers!
+
+### Complete Example
+
+See `examples/mcp-example.md` for a complete working bundle showing:
+- How to include the MCP behavior in your bundle
+- Server configuration examples
+- Usage instructions
+- Customization options
+
+---
+
+## Configuration
 
 ### Module Configuration Options
 
 The module can be configured via bundle behavior or direct module inclusion:
 
 ```yaml
-# In your bundle.md or as a behavior
+# In your bundle.md
 tools:
   - module: tool-mcp
     source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
@@ -122,20 +218,34 @@ AMPLIFIER_MCP_VERBOSE=true amplifier run "test"
 
 ---
 
+### Configuration Priority
+
+1. **Inline config** (servers in bundle config) - highest priority
+2. **Project config** (`.amplifier/mcp.json`) - recommended
+3. **User config** (`~/.amplifier/mcp.json`) - fallback
+4. **Environment variable** (`AMPLIFIER_MCP_CONFIG`) - override
+
 ## Usage
 
-### Using the Pre-configured Behavior
+### How MCP Tools Appear to Agents
 
-The easiest way to use this module is through the included behavior:
+Once configured, MCP server tools become available like any other Amplifier tool:
 
-```bash
-# Add the behavior to your bundle registry
-amplifier bundle add git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
+```
+User: "List files in the project"
 
-# Use it in your bundle.md
+Agent: [Uses mcp_filesystem_list_directory tool from MCP server]
+Response: [Directory listing from MCP filesystem server]
+```
+
+All MCP tools are prefixed with `mcp_{server}_{tool}` to avoid naming conflicts.
+
+### Example: Using Multiple MCP Servers
+
+```yaml
 ---
 bundle:
-  name: my-bundle
+  name: data-assistant
   version: 1.0.0
 
 includes:
@@ -143,42 +253,36 @@ includes:
   - bundle: git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
 ---
 
-# Your bundle instructions here
+You are a data assistant with access to databases and web automation via MCP.
+
+Use postgres tools for database operations.
+Use puppeteer tools for web scraping and automation.
 ```
 
-### Direct Module Integration
-
-You can also add the module directly to your bundle:
-
-```yaml
----
-bundle:
-  name: my-bundle
-  version: 1.0.0
-
-includes:
-  - bundle: git+https://github.com/microsoft/amplifier-foundation@main
-
-tools:
-  - module: tool-mcp
-    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
-    config:
-      verbose_servers: false
-      max_content_size: 50000
----
-
-# Your bundle instructions here
+With `.amplifier/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "${DATABASE_URL}"
+      }
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    }
+  }
+}
 ```
 
-### Running with MCP
-
-```bash
-# Set your bundle as current
-amplifier bundle use my-bundle
-
-# Run Amplifier (it will use MCP servers configured in .amplifier/mcp.json)
-amplifier run "What MCP tools do you have?"
-```
+Agent gets tools like:
+- `mcp_postgres_query` - Execute SQL queries
+- `mcp_postgres_list_tables` - List database tables
+- `mcp_puppeteer_navigate` - Navigate to URLs
+- `mcp_puppeteer_screenshot` - Capture screenshots
 
 ---
 

@@ -1,21 +1,33 @@
 bundle:
-  name: behavior-mcp
+  name: mcp-behavior
   version: 0.2.0
-  description: Model Context Protocol integration for MCP servers
+  description: Model Context Protocol integration with automatic server discovery
 
 tools:
   - module: tool-mcp
     source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
     config:
       # Server output control
-      verbose_servers: false  # Default: suppress MCP server debug output
+      verbose_servers: false  # Show MCP server debug output (default: false)
       server_log_dir: ~/.amplifier/logs/mcp-servers/  # Where logs are saved when suppressed
       
       # Content size protection (prevents context exhaustion)
-      max_content_size: 50000  # Default: 50k chars (~12k tokens)
+      # Content exceeding this limit is automatically truncated with a notice
+      max_content_size: 50000  # Maximum chars (~12k tokens, default: 50000)
       
       # Optional inline server config (overrides .amplifier/mcp.json)
+      # Most users configure servers in .amplifier/mcp.json instead
+      # Default server discovery:
+      #   1. Inline servers (here)
+      #   2. Project config: .amplifier/mcp.json
+      #   3. User config: ~/.amplifier/mcp.json
+      #   4. Environment: AMPLIFIER_MCP_CONFIG
       # servers:
-      #   my-server:
+      #   postgres:
       #     command: npx
-      #     args: ["-y", "my-mcp-server"]
+      #     args: ["-y", "@modelcontextprotocol/server-postgres"]
+      #     env:
+      #       POSTGRES_CONNECTION_STRING: "${DATABASE_URL}"
+      #   puppeteer:
+      #     command: npx
+      #     args: ["-y", "@modelcontextprotocol/server-puppeteer"]

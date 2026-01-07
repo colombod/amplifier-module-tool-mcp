@@ -1,99 +1,69 @@
 ---
-profile:
+bundle:
   name: mcp-example
-  version: "1.0.0"
-  description: "Example profile with MCP tools enabled"
-  extends: base
+  version: 1.0.0
+  description: Example bundle demonstrating MCP integration with Amplifier
 
-session:
-  orchestrator:
-    module: loop-streaming
-    source: git+https://github.com/microsoft/amplifier-module-loop-streaming@main
-    config:
-      extended_thinking: true
-  context:
-    module: context-simple
-    source: git+https://github.com/microsoft/amplifier-module-context-simple@main
-
-providers:
-  - module: provider-anthropic
-    source: git+https://github.com/microsoft/amplifier-module-provider-anthropic@main
-    config:
-      priority: 1
-      default_model: claude-sonnet-4-5
-
-# Or use OpenAI
-#  - module: provider-openai
-#    source: git+https://github.com/microsoft/amplifier-module-provider-openai@main
-#    config:
-#      priority: 1
-#      default_model: gpt-4
-
-tools:
-  - module: tool-mcp
-    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
-    config:
-      # Server output control (default: suppressed for clean UX)
-      verbose_servers: false  # Set to true to see MCP server debug output
-      server_log_dir: ~/.amplifier/logs/mcp-servers/  # Where server logs are saved when suppressed
-      
-      # Content size protection (prevents context exhaustion from large MCP responses)
-      # max_content_size: 50000  # Default: 50k chars (~12k tokens). Increase if needed.
-
-      # Optional inline server config (overrides .amplifier/mcp.json)
-      # servers:
-      #   my-server:
-      #     command: npx
-      #     args: ["-y", "my-mcp-server"]
-
-  - module: tool-filesystem
-    source: git+https://github.com/microsoft/amplifier-module-tool-filesystem@main
-  - module: tool-bash
-    source: git+https://github.com/microsoft/amplifier-module-tool-bash@main
-
-hooks:
-  - module: hooks-streaming-ui
-    source: git+https://github.com/microsoft/amplifier-module-hooks-streaming-ui@main
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-foundation@main
+  - bundle: git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
 ---
 
-# Example Profile with MCP Tools
+# Example Bundle with MCP Tools
 
-This profile demonstrates how to enable MCP (Model Context Protocol) tools in Amplifier.
+This bundle demonstrates how to enable MCP (Model Context Protocol) tools in Amplifier.
 
 ## What This Enables
 
-When you use this profile, your LLM agent gets access to tools from configured MCP servers:
-- Code analysis tools (repomix)
-- Documentation search (context7)
-- Browser automation (browser-use)
-- AI workflows (zen)
+When you use this bundle, your LLM agent gets access to tools from configured MCP servers:
+- Database operations (postgres, sqlite)
+- Web automation (puppeteer)
+- Web search (brave-search)
 - And any other MCP servers you configure
 
 ## Quick Start
 
-1. Copy this file to your project:
-   ```bash
-   cp examples/example-mcp.md .amplifier/profiles/
-   ```
+### 1. Create this bundle file
 
-2. Create MCP server configuration (see examples/mcp.json):
-   ```bash
-   cp examples/mcp.json .amplifier/
-   ```
+Save this as `.amplifier/bundles/mcp-example.md` or any location you prefer.
 
-3. Use the profile:
-   ```bash
-   amplifier run --profile example-mcp "What MCP tools do you have?"
-   ```
+### 2. Create MCP server configuration
+
+Create `.amplifier/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres"],
+      "env": {
+        "POSTGRES_CONNECTION_STRING": "${DATABASE_URL}"
+      }
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    }
+  }
+}
+```
+
+### 3. Use the bundle
+
+```bash
+amplifier bundle use .amplifier/bundles/mcp-example.md
+amplifier run "What MCP tools are available?"
+```
 
 ## Configuration
 
 ### MCP Server Configuration
 
-MCP servers are configured in `.amplifier/mcp.json` (see examples/mcp.json for examples).
+MCP servers are configured in `.amplifier/mcp.json`.
 
 The module will look for configuration in (priority order):
-1. Inline config in this profile (see `servers:` section in config above)
+1. Inline config in your bundle (see behavior config section)
 2. Project `.amplifier/mcp.json`
 3. User `~/.amplifier/mcp.json`
 4. Environment variable `$AMPLIFIER_MCP_CONFIG`
@@ -104,23 +74,50 @@ By default, MCP server debug output is suppressed for clean UX. Server logs are 
 
 **To see server output** (for debugging):
 
-Option 1 - Profile config:
-```yaml
-tools:
-  - module: tool-mcp
-    config:
-      verbose_servers: true
-```
-
-Option 2 - Environment variable:
+Environment variable:
 ```bash
-AMPLIFIER_MCP_VERBOSE=true amplifier run --profile mcp-example "test"
+AMPLIFIER_MCP_VERBOSE=true amplifier run "test"
 ```
 
 **Server logs location** (when suppressed):
 - Default: `~/.amplifier/logs/mcp-servers/{server-name}.log`
-- Custom: Set `server_log_dir` in config
 
-## Available MCP Servers
+## Popular MCP Servers
 
-See examples/mcp.json for ready-to-use server configurations.
+- `@modelcontextprotocol/server-postgres` - PostgreSQL database operations
+- `@modelcontextprotocol/server-puppeteer` - Web automation and scraping
+- `@modelcontextprotocol/server-sqlite` - SQLite database operations
+- `@modelcontextprotocol/server-brave-search` - Web search via Brave API
+
+See [MCP Server Registry](https://github.com/modelcontextprotocol/servers) for more.
+
+**Note:** Amplifier's built-in filesystem and bash tools are recommended for file operations and shell commands.
+
+## Customizing Configuration
+
+To override the default MCP behavior configuration, create your own bundle with custom settings:
+
+```yaml
+---
+bundle:
+  name: my-custom-mcp
+  version: 1.0.0
+
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-foundation@main
+
+tools:
+  - module: tool-mcp
+    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
+    config:
+      verbose_servers: true  # Show server debug output
+      max_content_size: 100000  # Allow larger responses
+      servers:
+        # Inline server config (optional)
+        my-server:
+          command: npx
+          args: ["-y", "my-mcp-server"]
+---
+
+# Your custom bundle instructions
+```

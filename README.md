@@ -288,15 +288,81 @@ Agent gets tools like:
 
 ## Development
 
+### Local Development Setup
+
+When developing the module locally, use the `file://` protocol to test changes without pushing to GitHub:
+
 ```bash
-# Install dependencies
+# 1. Clone and set up the module
+cd ~/your-workspace
+git clone https://github.com/robotdad/amplifier-module-tool-mcp.git
+cd amplifier-module-tool-mcp
 uv sync
 
-# Run tests
+# 2. Run tests
+uv run pytest tests/ -v
+
+# 3. Create a local development bundle
+# See examples/bundle-local-dev.md for a template
+
+# 4. Add your local bundle
+amplifier bundle add file://$(pwd)/examples/bundle-local-dev.md
+
+# 5. Use the bundle
+amplifier bundle use mcp-local-dev
+
+# 6. Test your changes
+amplifier run "list your tools"
+```
+
+**Important: Cache Management**
+
+Amplifier caches bundles on first load. When you make changes to your local module, you must clear the cache:
+
+```bash
+# Clear MCP module cache
+find ~/.amplifier/cache -type d -name "amplifier-module-tool-mcp-*" -exec rm -r {} +
+
+# Then reload your bundle
+amplifier run "test command"
+```
+
+**Local Bundle Example** (`examples/bundle-local-dev.md`):
+
+```yaml
+---
+bundle:
+  name: mcp-local-dev
+  version: 1.0.0
+  description: Local development bundle for testing MCP changes
+
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-foundation@main
+
+tools:
+  - module: tool-mcp
+    source: file:///absolute/path/to/amplifier-module-tool-mcp
+    config:
+      servers:
+        repomix:
+          command: npx
+          args: ["-y", "repomix", "--mcp"]
+---
+
+You are an AI assistant with MCP server capabilities enabled (LOCAL DEV VERSION).
+```
+
+### Running Tests
+
+```bash
+# Run all tests
 uv run pytest tests/ -v
 
 # Run specific test
 uv run pytest tests/test_integration.py -v
+
+# Run with coverage
+uv run pytest tests/ --cov=amplifier_module_tool_mcp --cov-report=html
 ```
 
 ---

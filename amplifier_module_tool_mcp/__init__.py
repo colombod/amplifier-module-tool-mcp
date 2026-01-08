@@ -16,13 +16,13 @@ from amplifier_core import ModuleCoordinator
 
 from amplifier_module_tool_mcp.manager import MCPManager
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __all__ = ["mount", "MCPManager"]
 
 logger = logging.getLogger(__name__)
 
 
-async def mount(coordinator: ModuleCoordinator, config: dict[str, Any] | None = None) -> None:
+async def mount(coordinator: ModuleCoordinator, config: dict[str, Any] | None = None):
     """
     Mount the MCP tool module.
 
@@ -33,42 +33,48 @@ async def mount(coordinator: ModuleCoordinator, config: dict[str, Any] | None = 
         config: Configuration dictionary with optional 'servers' key
 
     Returns:
-        None
-
-    Note:
-        MCP connections use AsyncExitStack context managers that must be closed
-        in the same async context they were created in. Therefore, we cannot
-        return a cleanup function to be called later - the connections will be
-        cleaned up when the process exits naturally.
+        Optional cleanup function
     """
     manager = MCPManager(config or {}, coordinator)
     await manager.start()
 
-    # Get all capabilities (this triggers lazy connection to all servers)
-    capabilities = await manager.get_all_capabilities()
+    # Register all capabilities with the coordinator
+    capabilities = manager.get_all_capabilities()
 
-    # Register capabilities with the coordinator
     for cap_name, cap_wrapper in capabilities.items():
         await coordinator.mount("tools", cap_wrapper, name=cap_name)
         logger.debug(f"Mounted MCP capability: {cap_name}")
 
     # Log summary
-    tools = await manager.get_tools()
-    resources = await manager.get_resources()
-    prompts = await manager.get_prompts()
-
-    # Count successful vs failed servers
-    connected_servers = sum(1 for client in manager.clients.values() if client.is_connected)
-    total_servers = len(manager.clients)
-    failed_servers = total_servers - connected_servers
+    tools = manager.get_tools()
+    resources = manager.get_resources()
+    prompts = manager.get_prompts()
 
     logger.info(
         f"MCP module mounted: {len(tools)} tools, {len(resources)} resources, "
-        f"{len(prompts)} prompts from {connected_servers}/{total_servers} servers"
+        f"{len(prompts)} prompts from {len(manager.get_server_names())} servers"
     )
 
-    if failed_servers > 0:
-        logger.warning(
-            f"{failed_servers} MCP server(s) failed to connect. "
-            f"Check logs above for details."
+    # Mount MCP visibility hook if enabled
+    visibility_config = config.get("visibility", {})
+    if visibility_config.get("enabled", True):  # Default: enabled
+        from amplifier_module_tool_mcp.hooks import MCPVisibilityHook
+        
+        hook = MCPVisibilityHook(manager, visibility_config)
+        
+        # Register hook on provider:request event
+        coordinator.hooks.register(
+            event="provider:request",
+            handler=hook.on_provider_request,
+            priority=hook.priority,
+            name="mcp-visibility",
         )
+        
+        logger.info(f"Mounted MCP visibility hook with {len(manager.get_server_names())} servers")
+
+    # Return cleanup function
+    async def cleanup():
+        logger.info("Cleaning up MCP module...")
+        await manager.stop()
+
+    return cleanup

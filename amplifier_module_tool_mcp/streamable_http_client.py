@@ -56,9 +56,6 @@ class MCPStreamableHTTPClient:
         self._connection_attempts = 0
         self._last_error: Exception | None = None
 
-        # Connection lock for thread-safe lazy connection
-        self._connect_lock = asyncio.Lock()
-
     @property
     def is_connected(self) -> bool:
         """Check if client is connected."""
@@ -82,21 +79,18 @@ class MCPStreamableHTTPClient:
 
     async def connect(self) -> None:
         """Connect to the Streamable HTTP MCP server and discover capabilities."""
-        # Thread-safe lazy connection
-        async with self._connect_lock:
-            if self._connected:
-                return
+        if self._connected:
+            return
 
-            # Check circuit breaker
-            if self._circuit_breaker.is_open():
-                logger.warning(f"Circuit breaker is OPEN for '{self.server_name}' - blocking connection attempt")
-                raise RuntimeError(f"Circuit breaker is OPEN for server '{self.server_name}'")
+        # Check circuit breaker
+        if self._circuit_breaker.is_open():
+            logger.warning(f"Circuit breaker is OPEN for '{self.server_name}' - blocking connection attempt")
+            raise RuntimeError(f"Circuit breaker is OPEN for server '{self.server_name}'")
 
-            self._connection_attempts += 1
+        self._connection_attempts += 1
 
         try:
-            # Create exit stack and enter the context managers
-            # Keep the connection alive by not exiting the context managers
+            # Use AsyncExitStack to manage context managers
             self._exit_stack = AsyncExitStack()
 
             # Connect via Streamable HTTP
@@ -133,13 +127,9 @@ class MCPStreamableHTTPClient:
             self._last_error = e
             self._circuit_breaker.record_failure()
 
-            # Abandon the exit stack without calling aclose()
-            # The MCP library creates async generators with background tasks managed by anyio
-            # task groups. When aclose() is called, it triggers cleanup in these generators
-            # which tries to exit cancel scopes in a different task than they were entered,
-            # causing "Attempted to exit cancel scope in a different task" errors.
-            # By abandoning the references, Python's process exit will handle cleanup naturally.
+            # Clean up on error
             if self._exit_stack:
+                await self._exit_stack.aclose()
                 self._exit_stack = None
 
             logger.error(f"Failed to connect to Streamable HTTP MCP server '{self.server_name}': {e}")
@@ -257,21 +247,22 @@ class MCPStreamableHTTPClient:
             raise
 
     async def disconnect(self) -> None:
-        """
-        Disconnect from the Streamable HTTP MCP server.
-
-        Note: We abandon the exit stack without calling aclose() to avoid async
-        generator and task boundary errors. The MCP library's async generators create
-        background tasks that must be entered/exited in the same task. Process exit
-        will handle cleanup naturally.
-        """
+        """Disconnect from the Streamable HTTP MCP server."""
         if not self._connected:
             return
 
-        # Abandon the exit stack without calling aclose()
         if self._exit_stack:
-            self._exit_stack = None
-            self.session = None
+            try:
+                await self._exit_stack.aclose()
+                logger.info(f"Disconnected from Streamable HTTP MCP server '{self.server_name}'")
+            except (RuntimeError, asyncio.CancelledError) as e:
+                # Suppress cancel scope and task boundary errors
+                logger.debug(f"Suppressed cleanup error for '{self.server_name}': {type(e).__name__}")
+            except Exception as e:
+                logger.warning(f"Unexpected error disconnecting from '{self.server_name}': {e}")
+            finally:
+                self._exit_stack = None
+                self.session = None
 
         self._connected = False
 

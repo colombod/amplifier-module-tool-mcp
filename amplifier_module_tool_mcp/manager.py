@@ -1,6 +1,5 @@
 """MCP Manager that orchestrates multiple MCP clients and their capabilities."""
 
-import asyncio
 import logging
 import os
 from pathlib import Path
@@ -62,15 +61,15 @@ class MCPManager:
 
     async def start(self) -> None:
         """
-        Initialize MCP manager by loading configurations and creating clients.
+        Start all configured MCP servers and discover their capabilities.
 
-        Lazy connection: Clients are created but NOT connected until first use.
-        This prevents:
-        - Slow servers from delaying startup
-        - Connection errors from crashing initialization
-        - Unnecessary connections to unused servers
+        This:
+        1. Loads server configurations from all sources
+        2. Creates MCP clients for each server (stdio or Streamable HTTP)
+        3. Connects to servers and discovers capabilities
+        4. Wraps tools, resources, and prompts for Amplifier
         """
-        logger.info("Initializing MCP manager...")
+        logger.info("Starting MCP manager...")
 
         # Load server configurations
         servers = self.config.load_servers()
@@ -79,19 +78,22 @@ class MCPManager:
             logger.warning("No MCP servers configured - module will not provide any capabilities")
             return
 
-        # Create client objects WITHOUT connecting
+        # Start each server
         for server_name, server_config in servers.items():
             try:
-                self._create_client(server_name, server_config)
+                await self._start_server(server_name, server_config)
             except Exception as e:
-                logger.error(f"Failed to create MCP client for '{server_name}': {e}")
+                logger.error(f"Failed to start MCP server '{server_name}': {e}")
                 # Continue with other servers
 
-        logger.info(f"MCP manager initialized with {len(self.clients)} server(s) (not yet connected)")
+        logger.info(
+            f"MCP manager started: {len(self.tools)} tools, {len(self.resources)} resources, "
+            f"{len(self.prompts)} prompts from {len(self.clients)} servers"
+        )
 
-    def _create_client(self, server_name: str, server_config: dict[str, Any]) -> None:
+    async def _start_server(self, server_name: str, server_config: dict[str, Any]) -> None:
         """
-        Create a client for a server WITHOUT connecting.
+        Start a single MCP server and discover its capabilities.
 
         Args:
             server_name: Unique name for this server
@@ -101,9 +103,9 @@ class MCPManager:
         transport_type = self._detect_transport_type(server_config)
 
         if transport_type == "streamable-http":
-            self._create_streamable_http_client(server_name, server_config)
+            await self._start_streamable_http_server(server_name, server_config)
         elif transport_type == "stdio":
-            self._create_stdio_client(server_name, server_config)
+            await self._start_stdio_server(server_name, server_config)
         else:
             logger.error(f"Unknown transport type '{transport_type}' for server '{server_name}'")
 
@@ -136,8 +138,8 @@ class MCPManager:
         # Default to stdio
         return "stdio"
 
-    def _create_stdio_client(self, server_name: str, server_config: dict[str, Any]) -> None:
-        """Create a stdio-based MCP client (without connecting)."""
+    async def _start_stdio_server(self, server_name: str, server_config: dict[str, Any]) -> None:
+        """Start a stdio-based MCP server."""
         command = server_config.get("command")
         args = server_config.get("args", [])
         env = server_config.get("env", {})
@@ -149,17 +151,18 @@ class MCPManager:
         # Substitute environment variables
         env = {k: MCPConfig.substitute_env_vars(v) for k, v in env.items()}
 
-        # Create client WITHOUT connecting
+        # Create and connect client with verbose settings
         client = MCPClient(
             server_name, command, args, env, verbose_servers=self.verbose_servers, server_log_dir=self.server_log_dir
         )
+        await client.connect()
 
-        # Store client (not connected, no capabilities discovered yet)
+        # Store client and register capabilities
         self.clients[server_name] = client
-        logger.debug(f"Created stdio client for '{server_name}' (not yet connected)")
+        await self._register_capabilities(server_name, client)
 
-    def _create_streamable_http_client(self, server_name: str, server_config: dict[str, Any]) -> None:
-        """Create a Streamable HTTP-based MCP client (without connecting)."""
+    async def _start_streamable_http_server(self, server_name: str, server_config: dict[str, Any]) -> None:
+        """Start a Streamable HTTP-based MCP server (2025-03-26 spec)."""
         url = server_config.get("url")
         headers = server_config.get("headers", {})
 
@@ -170,45 +173,13 @@ class MCPManager:
         # Substitute environment variables in headers
         headers = {k: MCPConfig.substitute_env_vars(v) for k, v in headers.items()}
 
-        # Create client WITHOUT connecting
+        # Create and connect client
         client = MCPStreamableHTTPClient(server_name, url, headers)
+        await client.connect()
 
-        # Store client (not connected, no capabilities discovered yet)
+        # Store client and register capabilities
         self.clients[server_name] = client
-        logger.debug(f"Created streamable-http client for '{server_name}' (not yet connected)")
-
-    async def _ensure_server_connected(self, server_name: str) -> None:
-        """
-        Ensure a server is connected and capabilities are discovered.
-
-        This is called lazily when capabilities are first accessed.
-        Handles connection and wrapper registration atomically.
-
-        Args:
-            server_name: Server to connect
-        """
-        client = self.clients.get(server_name)
-        if not client:
-            raise RuntimeError(f"Server '{server_name}' not found")
-
-        # Check if already connected
-        if client.is_connected:
-            return
-
-        # Connect and discover capabilities
-        try:
-            await client.connect()
-            # Register wrappers for this server's capabilities
-            await self._register_capabilities(server_name, client)
-            logger.info(
-                f"Lazily connected to '{server_name}': "
-                f"{len(client.get_tools())} tools, "
-                f"{len(client.get_resources())} resources, "
-                f"{len(client.get_prompts())} prompts"
-            )
-        except (Exception, asyncio.CancelledError) as e:
-            logger.error(f"Lazy connection failed for '{server_name}': {e}")
-            # Don't re-raise - let caller decide whether to continue
+        await self._register_capabilities(server_name, client)
 
     async def _register_capabilities(self, server_name: str, client: MCPClient | MCPStreamableHTTPClient) -> None:
         """
@@ -259,71 +230,27 @@ class MCPManager:
 
         logger.info("MCP manager stopped")
 
-    async def get_tools(self) -> dict[str, MCPToolWrapper]:
-        """
-        Get all registered tools (connects lazily if needed).
-
-        Returns:
-            Dictionary of tool wrappers
-        """
-        # Ensure all servers are connected and wrappers registered
-        for server_name in list(self.clients.keys()):
-            try:
-                await self._ensure_server_connected(server_name)
-            except (Exception, asyncio.CancelledError) as e:
-                logger.error(f"Failed to connect to '{server_name}' when listing tools: {e}")
-                # Continue with other servers
-
+    def get_tools(self) -> dict[str, MCPToolWrapper]:
+        """Get all registered tools."""
         return self.tools
 
-    async def get_resources(self) -> dict[str, MCPResourceWrapper]:
-        """
-        Get all registered resources (connects lazily if needed).
-
-        Returns:
-            Dictionary of resource wrappers
-        """
-        # Ensure all servers are connected and wrappers registered
-        for server_name in list(self.clients.keys()):
-            try:
-                await self._ensure_server_connected(server_name)
-            except (Exception, asyncio.CancelledError) as e:
-                logger.error(f"Failed to connect to '{server_name}' when listing resources: {e}")
-                # Continue with other servers
-
+    def get_resources(self) -> dict[str, MCPResourceWrapper]:
+        """Get all registered resources."""
         return self.resources
 
-    async def get_prompts(self) -> dict[str, MCPPromptWrapper]:
-        """
-        Get all registered prompts (connects lazily if needed).
-
-        Returns:
-            Dictionary of prompt wrappers
-        """
-        # Ensure all servers are connected and wrappers registered
-        for server_name in list(self.clients.keys()):
-            try:
-                await self._ensure_server_connected(server_name)
-            except (Exception, asyncio.CancelledError) as e:
-                logger.error(f"Failed to connect to '{server_name}' when listing prompts: {e}")
-                # Continue with other servers
-
+    def get_prompts(self) -> dict[str, MCPPromptWrapper]:
+        """Get all registered prompts."""
         return self.prompts
 
-    async def get_all_capabilities(self) -> dict[str, Any]:
+    def get_all_capabilities(self) -> dict[str, Any]:
         """
-        Get all capabilities (connects lazily if needed).
+        Get all capabilities (tools + resources + prompts).
 
         Returns:
             Dictionary with all wrappers
         """
-        # Trigger lazy connection for all capability types
-        await self.get_tools()
-        await self.get_resources()
-        await self.get_prompts()
-
         return {**self.tools, **self.resources, **self.prompts}
 
     def get_server_names(self) -> list[str]:
-        """Get list of configured server names (not necessarily connected)."""
+        """Get list of connected server names."""
         return list(self.clients.keys())

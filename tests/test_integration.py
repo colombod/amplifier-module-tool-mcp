@@ -95,7 +95,7 @@ async def test_manager_with_real_server(test_mcp_config, monkeypatch, mock_coord
         assert "repomix" in servers
 
         # Verify tools registered
-        tools = await manager.get_tools()
+        tools = manager.get_tools()
         assert len(tools) > 0
 
         # Check tool naming convention (tools should start with mcp_{server}_)

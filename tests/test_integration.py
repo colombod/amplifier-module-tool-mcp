@@ -155,7 +155,8 @@ async def test_connection_lifecycle():
     assert client.state == ConnectionState.DISCONNECTED
     assert not client.is_connected
     assert client.session is None
-    assert client._exit_stack is None
+    assert client._stdio_context is None
+    assert client._session_context is None
 
     # After connect (only if npx available)
     if shutil.which("npx"):
@@ -163,14 +164,16 @@ async def test_connection_lifecycle():
         assert client.state == ConnectionState.CONNECTED
         assert client.is_connected
         assert client.session is not None
-        assert client._exit_stack is not None
+        assert client._stdio_context is not None
+        assert client._session_context is not None
 
         # After disconnect
         await client.disconnect()
         assert client.state == ConnectionState.DISCONNECTED
         assert not client.is_connected
         assert client.session is None
-        assert client._exit_stack is None
+        assert client._stdio_context is None
+        assert client._session_context is None
 
 
 @pytest.mark.asyncio

@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from contextlib import AsyncExitStack
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -75,7 +74,9 @@ class MCPClient:
         self.resources: list[dict[str, Any]] = []
         self.prompts: list[dict[str, Any]] = []
         self._state = ConnectionState.DISCONNECTED
-        self._exit_stack: AsyncExitStack | None = None
+        # Context managers for connection - never exited, just kept alive
+        self._stdio_context: Any = None
+        self._session_context: Any = None
 
         # Reconnection and health management
         self._reconnection_strategy = ReconnectionStrategy(reconnection_config)
@@ -160,16 +161,14 @@ class MCPClient:
                 env=merged_env,
             )
 
-            # Use AsyncExitStack to manage context managers and keep connection alive
-            self._exit_stack = AsyncExitStack()
+            # Create context managers directly - keep them alive, never exit them
+            # This avoids AsyncExitStack cross-task cleanup errors on shutdown
+            self._stdio_context = stdio_client(server_params, errlog=self._server_log_file)
+            read, write = await self._stdio_context.__aenter__()
 
-            # Enter stdio_client context
-            read, write = await self._exit_stack.enter_async_context(
-                stdio_client(server_params, errlog=self._server_log_file)
-            )
-
-            # Enter ClientSession context
-            session = await self._exit_stack.enter_async_context(ClientSession(read, write))
+            # Create session context
+            self._session_context = ClientSession(read, write)
+            session = await self._session_context.__aenter__()
 
             # Initialize the session
             await session.initialize()
@@ -196,7 +195,8 @@ class MCPClient:
             self._circuit_breaker.record_failure()
 
             # Clean up on error - just drop references, no async cleanup
-            self._exit_stack = None  # Don't call aclose() - just drop reference
+            self._stdio_context = None
+            self._session_context = None
             self._server_log_file = None  # Don't close - let process exit handle it
 
             # Include log file location in error message if suppressed
@@ -364,7 +364,7 @@ class MCPClient:
         cleanup across task boundaries causes AsyncExitStack errors with anyio
         cancel scopes.
         
-        The AsyncExitStack, ClientSession, stdio streams, and log files will
+        The context managers, ClientSession, stdio streams, and log files will
         all be cleaned up naturally by the OS when the process terminates.
         """
         if self._state == ConnectionState.DISCONNECTED:
@@ -373,7 +373,8 @@ class MCPClient:
         # Update state flags for API consistency, but skip async cleanup
         self._state = ConnectionState.DISCONNECTED
         self.session = None
-        self._exit_stack = None  # Don't call aclose() - just drop reference
+        self._stdio_context = None  # Don't call __aexit__ - just drop reference
+        self._session_context = None  # Don't call __aexit__ - just drop reference
         self._server_log_file = None  # Don't close - let process exit handle it
         
         logger.debug(f"Marked '{self.server_name}' as disconnected (cleanup on process exit)")

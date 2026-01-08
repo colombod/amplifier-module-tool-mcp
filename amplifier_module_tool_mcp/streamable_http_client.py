@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from contextlib import AsyncExitStack
 from typing import Any
 
 from mcp import ClientSession
@@ -48,7 +47,9 @@ class MCPStreamableHTTPClient:
         self.resources: list[dict[str, Any]] = []
         self.prompts: list[dict[str, Any]] = []
         self._connected = False
-        self._exit_stack: AsyncExitStack | None = None
+        # Context managers for connection - never exited, just kept alive
+        self._http_context: Any = None
+        self._session_context: Any = None
 
         # Reconnection and health management
         self._reconnection_strategy = ReconnectionStrategy(reconnection_config)
@@ -90,20 +91,17 @@ class MCPStreamableHTTPClient:
         self._connection_attempts += 1
 
         try:
-            # Use AsyncExitStack to manage context managers
-            self._exit_stack = AsyncExitStack()
-
-            # Connect via Streamable HTTP
-            # Note: Returns (read, write, get_session_id) unlike other transports
-            read, write, get_session_id = await self._exit_stack.enter_async_context(
-                streamablehttp_client(self.url, headers=self.headers)
-            )
+            # Create context managers directly - keep them alive, never exit them
+            # This avoids AsyncExitStack cross-task cleanup errors on shutdown
+            self._http_context = streamablehttp_client(self.url, headers=self.headers)
+            read, write, get_session_id = await self._http_context.__aenter__()
 
             # Store session ID getter for resumability
             self._get_session_id = get_session_id
 
-            # Create session
-            session = await self._exit_stack.enter_async_context(ClientSession(read, write))
+            # Create session context
+            self._session_context = ClientSession(read, write)
+            session = await self._session_context.__aenter__()
 
             # Initialize
             await session.initialize()
@@ -128,7 +126,8 @@ class MCPStreamableHTTPClient:
             self._circuit_breaker.record_failure()
 
             # Clean up on error - just drop references, no async cleanup
-            self._exit_stack = None  # Don't call aclose() - just drop reference
+            self._http_context = None
+            self._session_context = None
 
             logger.error(f"Failed to connect to Streamable HTTP MCP server '{self.server_name}': {e}")
             raise RuntimeError(f"Streamable HTTP MCP server connection failed: {e}") from e
@@ -253,7 +252,7 @@ class MCPStreamableHTTPClient:
         cleanup across task boundaries causes AsyncExitStack errors with anyio
         cancel scopes.
         
-        The AsyncExitStack, ClientSession, and HTTP connections will all be
+        The context managers, ClientSession, and HTTP connections will all be
         cleaned up naturally when the process terminates.
         """
         if not self._connected:
@@ -262,7 +261,8 @@ class MCPStreamableHTTPClient:
         # Update state flags for API consistency, but skip async cleanup
         self._connected = False
         self.session = None
-        self._exit_stack = None  # Don't call aclose() - just drop reference
+        self._http_context = None  # Don't call __aexit__ - just drop reference
+        self._session_context = None  # Don't call __aexit__ - just drop reference
         
         logger.debug(f"Marked '{self.server_name}' as disconnected (cleanup on process exit)")
 

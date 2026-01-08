@@ -127,10 +127,8 @@ class MCPStreamableHTTPClient:
             self._last_error = e
             self._circuit_breaker.record_failure()
 
-            # Clean up on error
-            if self._exit_stack:
-                await self._exit_stack.aclose()
-                self._exit_stack = None
+            # Clean up on error - just drop references, no async cleanup
+            self._exit_stack = None  # Don't call aclose() - just drop reference
 
             logger.error(f"Failed to connect to Streamable HTTP MCP server '{self.server_name}': {e}")
             raise RuntimeError(f"Streamable HTTP MCP server connection failed: {e}") from e

@@ -10,15 +10,6 @@
       "args": ["-y", "@upstash/context7-mcp"],
       "description": "Documentation search tools for finding library documentation"
     },
-    "zen": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/BeehiveInnovations/zen-mcp-server.git",
-        "zen-mcp-server"
-      ],
-      "description": "AI-powered development workflow tools and prompts for code review, debugging, security audits, and more. Requires OPENAI_API_KEY environment variable."
-    },
     "deepwiki": {
       "type": "streamable-http",
       "url": "https://mcp.deepwiki.com/mcp",

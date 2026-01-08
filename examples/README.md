@@ -4,11 +4,9 @@ This directory contains a working example showing how to use the MCP tool module
 
 ## Quick Start
 
-Use the example bundle directly:
-
 ```bash
-amplifier bundle use git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md
-amplifier run "What MCP tools are available?"
+amplifier bundle add git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md
+amplifier bundle use mcp-example
 ```
 
 Or copy it to customize:
@@ -24,7 +22,6 @@ amplifier bundle use my-mcp-bundle.md
 Complete working example with inline MCP server configuration showing:
 - **repomix** - Code packaging and analysis
 - **context7** - Documentation search  
-- **zen** - AI-powered development workflows (requires OPENAI_API_KEY)
 - **deepwiki** - GitHub repository documentation (Streamable HTTP transport example)
 
 ### mcp.json

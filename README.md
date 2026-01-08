@@ -16,7 +16,20 @@ This module enables Amplifier to connect to MCP servers and expose their capabil
 
 **Production Proven:** 60 capabilities from 5 MCP servers (41 tools + 19 prompts)
 
-**Status:** ✅ Production Ready | **Version:** 0.2.0 | **Tests:** 46/46 passing
+**Status:** ✅ Production Ready | **Version:** 0.2.2 | **Tests:** 52/52 passing
+
+---
+
+## Try it Now
+
+Add the example bundle and start using MCP servers in two commands:
+
+```bash
+amplifier bundle add git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md
+amplifier bundle use mcp-example
+```
+
+This gives you access to [repomix](https://github.com/yamadashy/repomix), [context7](https://github.com/upstash/context7), and [deepwiki](https://deepwiki.com/) MCP servers immediately.
 
 ---
 

@@ -18,9 +18,6 @@ tools:
         context7:
           command: npx
           args: ["-y", "@upstash/context7-mcp"]
-        zen:
-          command: uvx
-          args: ["--from", "git+https://github.com/BeehiveInnovations/zen-mcp-server.git", "zen-mcp-server"]
         deepwiki:
           type: streamable-http
           url: https://mcp.deepwiki.com/mcp

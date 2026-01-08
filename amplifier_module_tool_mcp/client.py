@@ -368,41 +368,24 @@ class MCPClient:
         """
         Disconnect from the MCP server.
 
-        Note: Cleanup may fail when called across task boundaries due to
-        anyio cancel scope management. This is acceptable as connections
-        will close when the process exits.
+        NOTE: This method updates state flags but does NOT perform async cleanup.
+        Cleanup is handled automatically when the process exits. Explicit async
+        cleanup across task boundaries causes AsyncExitStack errors with anyio
+        cancel scopes.
+        
+        The AsyncExitStack, ClientSession, stdio streams, and log files will
+        all be cleaned up naturally by the OS when the process terminates.
         """
         if self._state == ConnectionState.DISCONNECTED:
             return
 
-        self._state = ConnectionState.DISCONNECTING
-
-        if self._exit_stack:
-            try:
-                await self._exit_stack.aclose()
-                logger.info(f"Disconnected from MCP server '{self.server_name}'")
-            except (RuntimeError, asyncio.CancelledError) as e:
-                # Suppress cancel scope and task boundary errors
-                # Connections will close on process exit anyway
-                logger.debug(f"Suppressed cleanup error for '{self.server_name}': {type(e).__name__}")
-            except Exception as e:
-                # Log unexpected errors but don't crash
-                logger.warning(f"Unexpected error disconnecting from '{self.server_name}': {e}")
-            finally:
-                self._exit_stack = None
-                self.session = None
-
-        # Close server log file if we opened one
-        if self._server_log_file:
-            try:
-                self._server_log_file.close()
-                logger.debug(f"Closed log file for server '{self.server_name}'")
-            except Exception as e:
-                logger.debug(f"Error closing log file for '{self.server_name}': {e}")
-            finally:
-                self._server_log_file = None
-
+        # Update state flags for API consistency, but skip async cleanup
         self._state = ConnectionState.DISCONNECTED
+        self.session = None
+        self._exit_stack = None  # Don't call aclose() - just drop reference
+        self._server_log_file = None  # Don't close - let process exit handle it
+        
+        logger.debug(f"Marked '{self.server_name}' as disconnected (cleanup on process exit)")
 
     async def reset_circuit_breaker(self) -> None:
         """Reset the circuit breaker (useful for manual recovery)."""

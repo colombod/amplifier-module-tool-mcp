@@ -247,24 +247,26 @@ class MCPStreamableHTTPClient:
             raise
 
     async def disconnect(self) -> None:
-        """Disconnect from the Streamable HTTP MCP server."""
+        """
+        Disconnect from the Streamable HTTP MCP server.
+
+        NOTE: This method updates state flags but does NOT perform async cleanup.
+        Cleanup is handled automatically when the process exits. Explicit async
+        cleanup across task boundaries causes AsyncExitStack errors with anyio
+        cancel scopes.
+        
+        The AsyncExitStack, ClientSession, and HTTP connections will all be
+        cleaned up naturally when the process terminates.
+        """
         if not self._connected:
             return
 
-        if self._exit_stack:
-            try:
-                await self._exit_stack.aclose()
-                logger.info(f"Disconnected from Streamable HTTP MCP server '{self.server_name}'")
-            except (RuntimeError, asyncio.CancelledError) as e:
-                # Suppress cancel scope and task boundary errors
-                logger.debug(f"Suppressed cleanup error for '{self.server_name}': {type(e).__name__}")
-            except Exception as e:
-                logger.warning(f"Unexpected error disconnecting from '{self.server_name}': {e}")
-            finally:
-                self._exit_stack = None
-                self.session = None
-
+        # Update state flags for API consistency, but skip async cleanup
         self._connected = False
+        self.session = None
+        self._exit_stack = None  # Don't call aclose() - just drop reference
+        
+        logger.debug(f"Marked '{self.server_name}' as disconnected (cleanup on process exit)")
 
     def get_tools(self) -> list[dict[str, Any]]:
         """Get the list of discovered tools."""

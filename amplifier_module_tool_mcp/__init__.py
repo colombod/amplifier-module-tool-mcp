@@ -72,9 +72,6 @@ async def mount(coordinator: ModuleCoordinator, config: dict[str, Any] | None = 
         
         logger.info(f"Mounted MCP visibility hook with {len(manager.get_server_names())} servers")
 
-    # Return cleanup function
-    async def cleanup():
-        logger.info("Cleaning up MCP module...")
-        await manager.stop()
-
-    return cleanup
+    # No explicit cleanup needed - connections live until process exit
+    # This eliminates AsyncExitStack cross-task errors during shutdown
+    return None

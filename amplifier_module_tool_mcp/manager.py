@@ -214,21 +214,18 @@ class MCPManager:
             logger.debug(f"Registered prompt '{wrapper.name}' from server '{server_name}'")
 
     async def stop(self) -> None:
-        """Stop all MCP servers."""
-        logger.info("Stopping MCP manager...")
-
-        for server_name, client in self.clients.items():
-            try:
-                await client.disconnect()
-            except Exception as e:
-                logger.error(f"Error disconnecting from server '{server_name}': {e}")
-
-        self.clients.clear()
-        self.tools.clear()
-        self.resources.clear()
-        self.prompts.clear()
-
-        logger.info("MCP manager stopped")
+        """
+        Stop all MCP servers.
+        
+        NOTE: This is intentionally a no-op. Cleanup is handled automatically
+        when the process exits. Explicit async cleanup across task boundaries
+        causes AsyncExitStack errors with anyio cancel scopes.
+        
+        Connections and resources will be cleaned up naturally by the OS when
+        the process terminates.
+        """
+        # No-op: process exit handles cleanup
+        pass
 
     def get_tools(self) -> dict[str, MCPToolWrapper]:
         """Get all registered tools."""

@@ -1,5 +1,6 @@
 """MCP Manager that orchestrates multiple MCP clients and their capabilities."""
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -205,9 +206,9 @@ class MCPManager:
                 f"{len(client.get_resources())} resources, "
                 f"{len(client.get_prompts())} prompts"
             )
-        except Exception as e:
+        except (Exception, asyncio.CancelledError) as e:
             logger.error(f"Lazy connection failed for '{server_name}': {e}")
-            raise
+            # Don't re-raise - let caller decide whether to continue
 
     async def _register_capabilities(self, server_name: str, client: MCPClient | MCPStreamableHTTPClient) -> None:
         """
@@ -269,7 +270,7 @@ class MCPManager:
         for server_name in list(self.clients.keys()):
             try:
                 await self._ensure_server_connected(server_name)
-            except Exception as e:
+            except (Exception, asyncio.CancelledError) as e:
                 logger.error(f"Failed to connect to '{server_name}' when listing tools: {e}")
                 # Continue with other servers
 
@@ -286,7 +287,7 @@ class MCPManager:
         for server_name in list(self.clients.keys()):
             try:
                 await self._ensure_server_connected(server_name)
-            except Exception as e:
+            except (Exception, asyncio.CancelledError) as e:
                 logger.error(f"Failed to connect to '{server_name}' when listing resources: {e}")
                 # Continue with other servers
 
@@ -303,7 +304,7 @@ class MCPManager:
         for server_name in list(self.clients.keys()):
             try:
                 await self._ensure_server_connected(server_name)
-            except Exception as e:
+            except (Exception, asyncio.CancelledError) as e:
                 logger.error(f"Failed to connect to '{server_name}' when listing prompts: {e}")
                 # Continue with other servers
 

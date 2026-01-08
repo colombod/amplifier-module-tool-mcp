@@ -57,7 +57,18 @@ async def mount(coordinator: ModuleCoordinator, config: dict[str, Any] | None = 
     resources = await manager.get_resources()
     prompts = await manager.get_prompts()
 
+    # Count successful vs failed servers
+    connected_servers = sum(1 for client in manager.clients.values() if client.is_connected)
+    total_servers = len(manager.clients)
+    failed_servers = total_servers - connected_servers
+
     logger.info(
         f"MCP module mounted: {len(tools)} tools, {len(resources)} resources, "
-        f"{len(prompts)} prompts from {len(manager.get_server_names())} servers"
+        f"{len(prompts)} prompts from {connected_servers}/{total_servers} servers"
     )
+
+    if failed_servers > 0:
+        logger.warning(
+            f"{failed_servers} MCP server(s) failed to connect. "
+            f"Check logs above for details."
+        )

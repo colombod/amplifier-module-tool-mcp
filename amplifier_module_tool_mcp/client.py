@@ -74,9 +74,12 @@ class MCPClient:
         self.resources: list[dict[str, Any]] = []
         self.prompts: list[dict[str, Any]] = []
         self._state = ConnectionState.DISCONNECTED
-        # Context managers for connection - never exited, just kept alive
-        self._stdio_context: Any = None
-        self._session_context: Any = None
+
+        # Background task for connection lifecycle
+        self._connection_task: asyncio.Task | None = None
+        self._ready_event = asyncio.Event()
+        self._shutdown_event = asyncio.Event()
+        self._connection_error: Exception | None = None
 
         # Reconnection and health management
         self._reconnection_strategy = ReconnectionStrategy(reconnection_config)
@@ -119,22 +122,14 @@ class MCPClient:
             "last_error": str(self._last_error) if self._last_error else None,
         }
 
-    async def connect(self) -> None:
-        """Connect to the MCP server and discover tools."""
-        if self.is_connected:
-            return
-
-        # Check circuit breaker
-        if self._circuit_breaker.is_open():
-            logger.warning(f"Circuit breaker is OPEN for '{self.server_name}' - blocking connection attempt")
-            raise RuntimeError(f"Circuit breaker is OPEN for server '{self.server_name}' - too many recent failures")
-
-        self._state = ConnectionState.CONNECTING
-        self._connection_attempts += 1
-
+    async def _connection_task_impl(self) -> None:
+        """Background task that owns the connection lifecycle.
+        
+        This task enters all context managers, stays alive until shutdown signal,
+        then exits all contexts properly in the same task context.
+        """
         try:
             # Create server parameters with inherited environment
-            # Merge parent process env with server-specific overrides
             import os
 
             if self.env:
@@ -144,69 +139,106 @@ class MCPClient:
                 # Just use parent environment
                 merged_env = os.environ.copy()
 
-            # Setup stderr handling based on verbose setting
-            if not self.verbose_servers:
-                # Suppress server output - redirect to log file
-                self.server_log_dir.mkdir(parents=True, exist_ok=True)
-                log_file_path = self.server_log_dir / f"{self.server_name}.log"
-                self._server_log_file = open(log_file_path, "a", encoding="utf-8")
-                logger.debug(f"Server '{self.server_name}' output redirected to: {log_file_path}")
-            else:
-                self._server_log_file = None
-                logger.debug(f"Server '{self.server_name}' output will appear in console")
-
             server_params = StdioServerParameters(
                 command=self.command,
                 args=self.args,
                 env=merged_env,
             )
 
-            # Create context managers directly - keep them alive, never exit them
-            # This avoids AsyncExitStack cross-task cleanup errors on shutdown
-            self._stdio_context = stdio_client(server_params, errlog=self._server_log_file)
-            read, write = await self._stdio_context.__aenter__()
+            # Open log file if needed
+            log_file = None
+            if not self.verbose_servers:
+                self.server_log_dir.mkdir(parents=True, exist_ok=True)
+                log_file_path = self.server_log_dir / f"{self.server_name}.log"
+                log_file = open(log_file_path, "a", encoding="utf-8")
+                logger.debug(f"Server '{self.server_name}' output redirected to: {log_file_path}")
+            else:
+                logger.debug(f"Server '{self.server_name}' output will appear in console")
 
-            # Create session context
-            self._session_context = ClientSession(read, write)
-            session = await self._session_context.__aenter__()
+            try:
+                # Enter stdio_client context - stays in THIS task
+                async with stdio_client(server_params, errlog=log_file) as (read, write):
+                    # Enter ClientSession context - stays in THIS task
+                    async with ClientSession(read, write) as session:
+                        # Initialize
+                        await session.initialize()
 
-            # Initialize the session
-            await session.initialize()
+                        # Store session and signal ready
+                        self.session = session
+                        await self._discover_capabilities()
+                        self._state = ConnectionState.CONNECTED
+                        self._circuit_breaker.record_success()
+                        self._last_error = None
+                        self._ready_event.set()
 
-            # Store session
-            self.session = session
+                        logger.info(
+                            f"Connected to MCP server '{self.server_name}' - "
+                            f"discovered {len(self.tools)} tools, {len(self.resources)} resources, "
+                            f"{len(self.prompts)} prompts"
+                        )
 
-            # Discover capabilities (tools, resources, prompts)
-            await self._discover_capabilities()
+                        # Stay alive until shutdown signal
+                        await self._shutdown_event.wait()
 
-            self._state = ConnectionState.CONNECTED
-            self._circuit_breaker.record_success()
-            self._last_error = None
-
-            logger.info(
-                f"Connected to MCP server '{self.server_name}' - "
-                f"discovered {len(self.tools)} tools, {len(self.resources)} resources, "
-                f"{len(self.prompts)} prompts"
-            )
+                        logger.debug(f"Shutting down connection to '{self.server_name}'")
+                        # Exiting contexts here cleans up properly in THIS task
+            finally:
+                if log_file:
+                    log_file.close()
 
         except Exception as e:
+            # Store error and signal ready so connect() can raise it
+            self._connection_error = e
             self._state = ConnectionState.ERROR
             self._last_error = e
             self._circuit_breaker.record_failure()
-
-            # Clean up on error - just drop references, no async cleanup
-            self._stdio_context = None
-            self._session_context = None
-            self._server_log_file = None  # Don't close - let process exit handle it
+            self._ready_event.set()
 
             # Include log file location in error message if suppressed
             error_msg = f"Failed to connect to MCP server '{self.server_name}': {e}"
             if not self.verbose_servers:
                 log_file_path = self.server_log_dir / f"{self.server_name}.log"
                 error_msg += f"\nServer logs available at: {log_file_path}"
-
             logger.error(error_msg)
-            raise RuntimeError(f"MCP server connection failed: {e}") from e
+
+        finally:
+            # Clear state
+            self.session = None
+            self._state = ConnectionState.DISCONNECTED
+            logger.debug(f"Connection task for '{self.server_name}' completed")
+
+    async def connect(self) -> None:
+        """Connect to MCP server (starts background task)."""
+        if self._connection_task is not None:
+            return  # Already connected
+
+        # Check circuit breaker
+        if self._circuit_breaker.is_open():
+            logger.warning(f"Circuit breaker is OPEN for '{self.server_name}' - blocking connection attempt")
+            raise RuntimeError(f"Circuit breaker is OPEN for server '{self.server_name}' - too many recent failures")
+
+        self._state = ConnectionState.CONNECTING
+        self._connection_attempts += 1
+
+        # Reset coordination
+        self._ready_event.clear()
+        self._shutdown_event.clear()
+        self._connection_error = None
+
+        # Start background task
+        self._connection_task = asyncio.create_task(
+            self._connection_task_impl(),
+            name=f"mcp-{self.server_name}"
+        )
+
+        # Wait for ready signal
+        await self._ready_event.wait()
+
+        # Check for startup errors
+        if self._connection_error:
+            await self._connection_task
+            self._connection_task = None
+            raise RuntimeError(f"MCP server connection failed: {self._connection_error}")
 
     async def connect_with_retry(self) -> None:
         """Connect with automatic retry on failure."""
@@ -356,28 +388,21 @@ class MCPClient:
             raise
 
     async def disconnect(self) -> None:
-        """
-        Disconnect from the MCP server.
-
-        NOTE: This method updates state flags but does NOT perform async cleanup.
-        Cleanup is handled automatically when the process exits. Explicit async
-        cleanup across task boundaries causes AsyncExitStack errors with anyio
-        cancel scopes.
-        
-        The context managers, ClientSession, stdio streams, and log files will
-        all be cleaned up naturally by the OS when the process terminates.
-        """
-        if self._state == ConnectionState.DISCONNECTED:
+        """Disconnect from MCP server (stops background task cleanly)."""
+        if self._connection_task is None:
             return
 
-        # Update state flags for API consistency, but skip async cleanup
-        self._state = ConnectionState.DISCONNECTED
-        self.session = None
-        self._stdio_context = None  # Don't call __aexit__ - just drop reference
-        self._session_context = None  # Don't call __aexit__ - just drop reference
-        self._server_log_file = None  # Don't close - let process exit handle it
-        
-        logger.debug(f"Marked '{self.server_name}' as disconnected (cleanup on process exit)")
+        # Signal shutdown
+        self._shutdown_event.set()
+
+        # Wait for clean exit
+        try:
+            await self._connection_task
+        except Exception as e:
+            logger.warning(f"Error during {self.server_name} shutdown: {e}")
+        finally:
+            self._connection_task = None
+            logger.info(f"Disconnected from MCP server '{self.server_name}'")
 
     async def reset_circuit_breaker(self) -> None:
         """Reset the circuit breaker (useful for manual recovery)."""

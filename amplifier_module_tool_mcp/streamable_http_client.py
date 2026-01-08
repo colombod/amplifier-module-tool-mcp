@@ -47,9 +47,12 @@ class MCPStreamableHTTPClient:
         self.resources: list[dict[str, Any]] = []
         self.prompts: list[dict[str, Any]] = []
         self._connected = False
-        # Context managers for connection - never exited, just kept alive
-        self._http_context: Any = None
-        self._session_context: Any = None
+
+        # Background task for connection lifecycle
+        self._connection_task: asyncio.Task | None = None
+        self._ready_event = asyncio.Event()
+        self._shutdown_event = asyncio.Event()
+        self._connection_error: Exception | None = None
 
         # Reconnection and health management
         self._reconnection_strategy = ReconnectionStrategy(reconnection_config)
@@ -78,10 +81,63 @@ class MCPStreamableHTTPClient:
             "last_error": str(self._last_error) if self._last_error else None,
         }
 
+    async def _connection_task_impl(self) -> None:
+        """Background task that owns the connection lifecycle.
+        
+        This task enters all context managers, stays alive until shutdown signal,
+        then exits all contexts properly in the same task context.
+        """
+        try:
+            # Enter streamablehttp_client context - stays in THIS task
+            async with streamablehttp_client(self.url, headers=self.headers) as (read, write, get_session_id):
+                # Store session ID getter for resumability
+                self._get_session_id = get_session_id
+
+                # Enter ClientSession context - stays in THIS task
+                async with ClientSession(read, write) as session:
+                    # Initialize
+                    await session.initialize()
+
+                    # Store session and signal ready
+                    self.session = session
+                    await self._discover_capabilities()
+                    self._connected = True
+                    self._circuit_breaker.record_success()
+                    self._last_error = None
+                    self._ready_event.set()
+
+                    logger.info(
+                        f"Connected to Streamable HTTP MCP server '{self.server_name}' at {self.url} - "
+                        f"discovered {len(self.tools)} tools, {len(self.resources)} resources, "
+                        f"{len(self.prompts)} prompts"
+                    )
+
+                    # Stay alive until shutdown signal
+                    await self._shutdown_event.wait()
+
+                    logger.debug(f"Shutting down connection to '{self.server_name}'")
+                    # Exiting contexts here cleans up properly in THIS task
+
+        except Exception as e:
+            # Store error and signal ready so connect() can raise it
+            self._connection_error = e
+            self._connected = False
+            self._last_error = e
+            self._circuit_breaker.record_failure()
+            self._ready_event.set()
+
+            logger.error(f"Failed to connect to Streamable HTTP MCP server '{self.server_name}': {e}")
+
+        finally:
+            # Clear state
+            self.session = None
+            self._connected = False
+            logger.debug(f"Connection task for '{self.server_name}' completed")
+
     async def connect(self) -> None:
-        """Connect to the Streamable HTTP MCP server and discover capabilities."""
-        if self._connected:
-            return
+        """Connect to Streamable HTTP MCP server (starts background task)."""
+        if self._connection_task is not None:
+            return  # Already connected
 
         # Check circuit breaker
         if self._circuit_breaker.is_open():
@@ -90,47 +146,25 @@ class MCPStreamableHTTPClient:
 
         self._connection_attempts += 1
 
-        try:
-            # Create context managers directly - keep them alive, never exit them
-            # This avoids AsyncExitStack cross-task cleanup errors on shutdown
-            self._http_context = streamablehttp_client(self.url, headers=self.headers)
-            read, write, get_session_id = await self._http_context.__aenter__()
+        # Reset coordination
+        self._ready_event.clear()
+        self._shutdown_event.clear()
+        self._connection_error = None
 
-            # Store session ID getter for resumability
-            self._get_session_id = get_session_id
+        # Start background task
+        self._connection_task = asyncio.create_task(
+            self._connection_task_impl(),
+            name=f"mcp-http-{self.server_name}"
+        )
 
-            # Create session context
-            self._session_context = ClientSession(read, write)
-            session = await self._session_context.__aenter__()
+        # Wait for ready signal
+        await self._ready_event.wait()
 
-            # Initialize
-            await session.initialize()
-            self.session = session
-
-            # Discover capabilities
-            await self._discover_capabilities()
-
-            self._connected = True
-            self._circuit_breaker.record_success()
-            self._last_error = None
-
-            logger.info(
-                f"Connected to Streamable HTTP MCP server '{self.server_name}' at {self.url} - "
-                f"discovered {len(self.tools)} tools, {len(self.resources)} resources, "
-                f"{len(self.prompts)} prompts"
-            )
-
-        except Exception as e:
-            self._connected = False
-            self._last_error = e
-            self._circuit_breaker.record_failure()
-
-            # Clean up on error - just drop references, no async cleanup
-            self._http_context = None
-            self._session_context = None
-
-            logger.error(f"Failed to connect to Streamable HTTP MCP server '{self.server_name}': {e}")
-            raise RuntimeError(f"Streamable HTTP MCP server connection failed: {e}") from e
+        # Check for startup errors
+        if self._connection_error:
+            await self._connection_task
+            self._connection_task = None
+            raise RuntimeError(f"Streamable HTTP MCP server connection failed: {self._connection_error}")
 
     async def _discover_capabilities(self) -> None:
         """Discover tools, resources, and prompts from server."""
@@ -244,27 +278,21 @@ class MCPStreamableHTTPClient:
             raise
 
     async def disconnect(self) -> None:
-        """
-        Disconnect from the Streamable HTTP MCP server.
-
-        NOTE: This method updates state flags but does NOT perform async cleanup.
-        Cleanup is handled automatically when the process exits. Explicit async
-        cleanup across task boundaries causes AsyncExitStack errors with anyio
-        cancel scopes.
-        
-        The context managers, ClientSession, and HTTP connections will all be
-        cleaned up naturally when the process terminates.
-        """
-        if not self._connected:
+        """Disconnect from Streamable HTTP MCP server (stops background task cleanly)."""
+        if self._connection_task is None:
             return
 
-        # Update state flags for API consistency, but skip async cleanup
-        self._connected = False
-        self.session = None
-        self._http_context = None  # Don't call __aexit__ - just drop reference
-        self._session_context = None  # Don't call __aexit__ - just drop reference
-        
-        logger.debug(f"Marked '{self.server_name}' as disconnected (cleanup on process exit)")
+        # Signal shutdown
+        self._shutdown_event.set()
+
+        # Wait for clean exit
+        try:
+            await self._connection_task
+        except Exception as e:
+            logger.warning(f"Error during {self.server_name} shutdown: {e}")
+        finally:
+            self._connection_task = None
+            logger.info(f"Disconnected from Streamable HTTP MCP server '{self.server_name}'")
 
     def get_tools(self) -> list[dict[str, Any]]:
         """Get the list of discovered tools."""

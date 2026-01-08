@@ -1,5 +1,6 @@
 """MCP Manager that orchestrates multiple MCP clients and their capabilities."""
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -214,18 +215,21 @@ class MCPManager:
             logger.debug(f"Registered prompt '{wrapper.name}' from server '{server_name}'")
 
     async def stop(self) -> None:
-        """
-        Stop all MCP servers.
+        """Stop all MCP servers cleanly."""
+        logger.info("Stopping MCP manager...")
         
-        NOTE: This is intentionally a no-op. Cleanup is handled automatically
-        when the process exits. Explicit async cleanup across task boundaries
-        causes AsyncExitStack errors with anyio cancel scopes.
+        # Disconnect all servers in parallel
+        await asyncio.gather(
+            *[client.disconnect() for client in self.clients.values()],
+            return_exceptions=True
+        )
         
-        Connections and resources will be cleaned up naturally by the OS when
-        the process terminates.
-        """
-        # No-op: process exit handles cleanup
-        pass
+        self.clients.clear()
+        self.tools.clear()
+        self.resources.clear()
+        self.prompts.clear()
+        
+        logger.info("MCP manager stopped")
 
     def get_tools(self) -> dict[str, MCPToolWrapper]:
         """Get all registered tools."""

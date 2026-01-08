@@ -197,7 +197,7 @@ providers:
 
 tools:
   - module: tool-mcp
-    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
+    source: git+https://github.com/microsoft/amplifier-module-tool-mcp@main
     config:
       verbose_servers: false  # Suppress server noise
 

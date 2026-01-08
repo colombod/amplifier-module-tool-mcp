@@ -25,7 +25,7 @@ This module enables Amplifier to connect to MCP servers and expose their capabil
 Add the example bundle and start using MCP servers in two commands:
 
 ```bash
-amplifier bundle add git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md
+amplifier bundle add git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md
 amplifier bundle use mcp-example
 ```
 
@@ -63,7 +63,7 @@ bundle:
 
 includes:
   - bundle: git+https://github.com/microsoft/amplifier-foundation@main
-  - bundle: git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
+  - bundle: git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
 ---
 
 # Your bundle instructions...
@@ -97,7 +97,7 @@ includes:
 
 tools:
   - module: tool-mcp
-    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
+    source: git+https://github.com/microsoft/amplifier-module-tool-mcp@main
     config:
       verbose_servers: true  # Custom: show server output
       max_content_size: 100000  # Custom: larger content limit
@@ -125,7 +125,7 @@ uv sync
 # your-bundle.md
 includes:
   - bundle: git+https://github.com/microsoft/amplifier-foundation@main
-  - bundle: git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
+  - bundle: git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
 ```
 
 ### 2. Configure MCP Servers
@@ -188,7 +188,7 @@ The module can be configured via bundle behavior or direct module inclusion:
 # In your bundle.md
 tools:
   - module: tool-mcp
-    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
+    source: git+https://github.com/microsoft/amplifier-module-tool-mcp@main
     config:
       # Server output control
       verbose_servers: false  # Default: suppress MCP server debug output
@@ -263,7 +263,7 @@ bundle:
 
 includes:
   - bundle: git+https://github.com/microsoft/amplifier-foundation@main
-  - bundle: git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
+  - bundle: git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
 ---
 
 You are a data assistant with access to databases and web automation via MCP.
@@ -308,7 +308,7 @@ When developing the module locally, use the `file://` protocol to test changes w
 ```bash
 # 1. Clone and set up the module
 cd ~/your-workspace
-git clone https://github.com/robotdad/amplifier-module-tool-mcp.git
+git clone https://github.com/microsoft/amplifier-module-tool-mcp.git
 cd amplifier-module-tool-mcp
 uv sync
 

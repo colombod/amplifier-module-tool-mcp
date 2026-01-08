@@ -1,6 +1,6 @@
 # MCP Module - Complete & Ready to Use!
 
-**Repository**: https://github.com/robotdad/amplifier-module-tool-mcp  
+**Repository**: https://github.com/microsoft/amplifier-module-tool-mcp  
 **Status**: ✅ Production Ready  
 **Version**: 0.1.0  
 **Date**: 2025-10-18

@@ -1,7 +1,7 @@
 # MCP Module Modernization - Session Handoff
 
 **Date:** 2026-01-07  
-**Repository:** https://github.com/robotdad/amplifier-module-tool-mcp  
+**Repository:** https://github.com/microsoft/amplifier-module-tool-mcp  
 **Current Version:** 0.2.2 (in development)  
 **Status:** ✅ FIXED - Critical crash on server connection failure resolved
 
@@ -167,14 +167,14 @@ RuntimeError: aclose(): asynchronous generator is already running
 ## Test Environment
 
 **System:** ARM64 Linux (monad/robotdad's machine)  
-**Location:** /home/robotdad/Work/mcp/amplifier-module-tool-mcp  
+**Location:** /path/to/amplifier-module-tool-mcp  
 **Node.js:** ✅ Installed (npx 11.6.2)  
 **Python:** 3.12.3  
 **Amplifier:** Latest  
 
 **Bundle Configuration:**
 - Using: `mcp-example` bundle
-- Source: `git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md`
+- Source: `git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md`
 - Inline servers: repomix, context7, zen, deepwiki
 
 ---
@@ -226,7 +226,7 @@ RuntimeError: aclose(): asynchronous generator is already running
 
 2. **Test with working servers**
    ```bash
-   amplifier run "use mcp_repomix tool to analyze /home/robotdad/Work/mcp"
+   amplifier run "use mcp_repomix tool to analyze /path/to/workspace"
    amplifier run "use mcp_context7 tool to search for python async documentation"
    ```
 
@@ -295,7 +295,7 @@ find ~/.amplifier/cache -type d -name "amplifier-module-tool-mcp-*" -exec rm -r 
 
 # Add bundle from GitHub
 amplifier bundle remove mcp-example
-amplifier bundle add git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md
+amplifier bundle add git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md
 
 # Use the bundle
 amplifier bundle use mcp-example
@@ -343,5 +343,5 @@ amplifier run "list all your available tools"
 - **Session 1** (50a802f3-9e7e-418b-a00f-e454e0dd566f): Lazy connection implementation (v0.2.1, commit bf0976a)
 - **Session 2** (f9ee94c0-379c-456e-80ed-af5bfd176901): Critical crash fix (commit 271f812)
 
-**Repository:** /home/robotdad/Work/mcp/amplifier-module-tool-mcp  
-**Working directory:** /home/robotdad/Work/mcp
+**Repository:** /path/to/amplifier-module-tool-mcp  
+**Working directory:** /path/to/workspace

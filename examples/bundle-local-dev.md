@@ -9,7 +9,7 @@ includes:
 
 tools:
   - module: tool-mcp
-    source: file:///home/robotdad/Work/mcp/amplifier-module-tool-mcp
+    source: file:///path/to/amplifier-module-tool-mcp
     config:
       servers:
         repomix:

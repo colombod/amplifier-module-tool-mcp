@@ -5,14 +5,14 @@ This directory contains a working example showing how to use the MCP tool module
 ## Quick Start
 
 ```bash
-amplifier bundle add git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md
+amplifier bundle add git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md
 amplifier bundle use mcp-example
 ```
 
 Or copy it to customize:
 
 ```bash
-curl -o my-mcp-bundle.md https://raw.githubusercontent.com/robotdad/amplifier-module-tool-mcp/main/examples/bundle.md
+curl -o my-mcp-bundle.md https://raw.githubusercontent.com/microsoft/amplifier-module-tool-mcp/main/examples/bundle.md
 amplifier bundle use my-mcp-bundle.md
 ```
 
@@ -47,7 +47,7 @@ Copy the bundle and modify the `servers:` section:
 ```yaml
 tools:
   - module: tool-mcp
-    source: git+https://github.com/robotdad/amplifier-module-tool-mcp@main
+    source: git+https://github.com/microsoft/amplifier-module-tool-mcp@main
     config:
       servers:
         my-server:
@@ -66,7 +66,7 @@ cp examples/mcp.json .amplifier/mcp.json
 # Edit .amplifier/mcp.json to customize
 
 # Then use a minimal bundle without inline config
-amplifier bundle use git+https://github.com/robotdad/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
+amplifier bundle use git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml
 ```
 
 ## Popular MCP Servers

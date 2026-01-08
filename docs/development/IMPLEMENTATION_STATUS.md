@@ -248,9 +248,9 @@ tests/test_wrapper.py::test_wrapper_error_handling PASSED                [100%]
 
 ## 🔗 Resources
 
-- **Implementation Plan**: `/Users/robotdad/Source/amplifier-dev/ai_working/mcp/IMPLEMENTATION_PLAN.md`
-- **Architecture**: `/Users/robotdad/Source/amplifier-dev/ai_working/mcp/ARCHITECTURE.md`
-- **Configuration Spec**: `/Users/robotdad/Source/amplifier-dev/ai_working/mcp/CONFIGURATION_SPECIFICATION.md`
+- **Implementation Plan**: `/path/to/amplifier-dev/ai_working/mcp/IMPLEMENTATION_PLAN.md`
+- **Architecture**: `/path/to/amplifier-dev/ai_working/mcp/ARCHITECTURE.md`
+- **Configuration Spec**: `/path/to/amplifier-dev/ai_working/mcp/CONFIGURATION_SPECIFICATION.md`
 - **MCP Specification**: https://modelcontextprotocol.io
 - **MCP Python SDK**: https://github.com/modelcontextprotocol/python-sdk
 

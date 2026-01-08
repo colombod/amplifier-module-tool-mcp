@@ -195,18 +195,9 @@ class MCPClient:
             self._last_error = e
             self._circuit_breaker.record_failure()
 
-            # Clean up on error
-            if self._exit_stack:
-                await self._exit_stack.aclose()
-                self._exit_stack = None
-
-            # Close log file if opened
-            if self._server_log_file:
-                try:
-                    self._server_log_file.close()
-                except Exception:
-                    pass
-                self._server_log_file = None
+            # Clean up on error - just drop references, no async cleanup
+            self._exit_stack = None  # Don't call aclose() - just drop reference
+            self._server_log_file = None  # Don't close - let process exit handle it
 
             # Include log file location in error message if suppressed
             error_msg = f"Failed to connect to MCP server '{self.server_name}': {e}"

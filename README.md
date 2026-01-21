@@ -20,16 +20,28 @@ This module enables Amplifier to connect to MCP servers and expose their capabil
 
 ---
 
-## Try it Now
+## Installation
 
-Add the example bundle and start using MCP servers in two commands:
+### Recommended: Always-Available MCP Support
+
+Add MCP capabilities to **all** your Amplifier sessions with a single command:
+
+```bash
+amplifier bundle add git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml --app
+```
+
+The `--app` flag registers MCP as an "app bundle" that automatically composes with every session, regardless of which primary bundle you use. Configure your servers in `~/.amplifier/mcp.json` and they'll be available everywhere.
+
+### Quick Demo with Example Servers
+
+Try MCP immediately with pre-configured servers (repomix, context7, deepwiki):
 
 ```bash
 amplifier bundle add git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md
 amplifier bundle use mcp-example
 ```
 
-This gives you access to [repomix](https://github.com/yamadashy/repomix), [context7](https://github.com/upstash/context7), and [deepwiki](https://deepwiki.com/) MCP servers immediately.
+This example bundle includes foundation and comes with repomix, context7, and deepwiki servers pre-configured.
 
 ---
 

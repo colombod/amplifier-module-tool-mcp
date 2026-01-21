@@ -1,8 +1,21 @@
 # MCP Module Examples
 
-This directory contains a working example showing how to use the MCP tool module with inline server configuration.
+This directory contains example bundles showing how to use the MCP tool module.
 
-## Quick Start
+## Recommended: Always-Available MCP (via Behavior)
+
+For most users, add the MCP behavior with `--app` to make it available across all sessions:
+
+```bash
+# Add MCP behavior as app bundle (always active)
+amplifier bundle add git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=behaviors/mcp.yaml --app
+
+# Configure servers in ~/.amplifier/mcp.json
+```
+
+## Example Bundle with Pre-Configured Servers
+
+This example includes foundation and comes with repomix, context7, and deepwiki servers pre-configured:
 
 ```bash
 amplifier bundle add git+https://github.com/microsoft/amplifier-module-tool-mcp@main#subdirectory=examples/bundle.md

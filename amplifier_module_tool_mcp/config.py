@@ -15,9 +15,12 @@ class MCPConfig:
 
     Configuration can come from multiple sources (in priority order):
     1. Inline config (passed directly to module)
-    2. Project config (.amplifier/mcp.json)
-    3. User config (~/.amplifier/mcp.json)
-    4. Environment variable (AMPLIFIER_MCP_CONFIG)
+    2. Environment variable (AMPLIFIER_MCP_CONFIG) - explicit override
+    3. Project config (.amplifier/mcp.json)
+    4. User config (~/.amplifier/mcp.json) - personal defaults
+
+    This follows amplifier-foundation conventions where env vars are
+    overrides (high priority), not fallbacks.
     """
 
     def __init__(self, inline_config: dict[str, Any] | None = None):
@@ -39,10 +42,11 @@ class MCPConfig:
         servers = {}
 
         # Load from each source (reverse priority order, so higher priority overwrites)
+        # Priority: inline > env > project > user (matches foundation conventions)
         for config in [
-            self._load_from_env(),
             self._load_from_user_config(),
             self._load_from_project_config(),
+            self._load_from_env(),
             self._load_from_inline(),
         ]:
             if config and "mcpServers" in config:
@@ -119,11 +123,11 @@ class MCPConfig:
         # Simple substitution for ${VAR} and ${VAR:-default}
         import re
 
-        def replace_var(match: re.Match) -> str:
+        def replace_var(match: re.Match[str]) -> str:
             var_expr = match.group(1)
             if ":-" in var_expr:
                 var_name, default = var_expr.split(":-", 1)
                 return os.environ.get(var_name, default)
-            return os.environ.get(var_expr, "")
+            return os.environ.get(var_expr) or ""
 
         return re.sub(r"\$\{([^}]+)\}", replace_var, value)

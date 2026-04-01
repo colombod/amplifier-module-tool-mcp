@@ -84,7 +84,7 @@ class MCPManager:
         for server_name, server_config in servers.items():
             try:
                 await self._start_server(server_name, server_config)
-            except Exception as e:
+            except (Exception, asyncio.CancelledError) as e:
                 logger.error(f"Failed to start MCP server '{server_name}': {e}")
                 # Continue with other servers
 

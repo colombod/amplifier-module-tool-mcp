@@ -5,13 +5,35 @@ import logging
 from typing import Any
 
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
+from mcp.shared._httpx_utils import create_mcp_http_client
 
 from amplifier_module_tool_mcp.reconnection import CircuitBreaker
 from amplifier_module_tool_mcp.reconnection import ReconnectionConfig
 from amplifier_module_tool_mcp.reconnection import ReconnectionStrategy
 
 logger = logging.getLogger(__name__)
+
+# Hard timeout (seconds) for the initial MCP handshake.
+# Guards against servers that accept TCP connections but never respond,
+# which would otherwise cause connect() to block indefinitely.
+CONNECTION_TIMEOUT = 30.0
+
+
+def _extract_root_cause(exc: BaseException) -> BaseException:
+    """Unwrap ExceptionGroup to the most informative root cause.
+
+    The MCP SDK's anyio TaskGroup surfaces transport errors as
+    ExceptionGroup("unhandled errors in a TaskGroup", [actual_error]).
+    Unwrapping gives callers the real cause (e.g. HTTPStatusError 502)
+    instead of the opaque ExceptionGroup string.
+
+    Available natively from Python 3.11; anyio produces ExceptionGroup
+    on earlier versions too via the exceptiongroup backport.
+    """
+    if isinstance(exc, ExceptionGroup) and exc.exceptions:
+        return _extract_root_cause(exc.exceptions[0])
+    return exc
 
 
 class MCPStreamableHTTPClient:
@@ -52,7 +74,8 @@ class MCPStreamableHTTPClient:
         self._connection_task: asyncio.Task | None = None
         self._ready_event = asyncio.Event()
         self._shutdown_event = asyncio.Event()
-        self._connection_error: Exception | None = None
+        # BaseException so we can store CancelledError if the task is cancelled
+        self._connection_error: BaseException | None = None
 
         # Reconnection and health management
         self._reconnection_strategy = ReconnectionStrategy(reconnection_config)
@@ -83,50 +106,85 @@ class MCPStreamableHTTPClient:
 
     async def _connection_task_impl(self) -> None:
         """Background task that owns the connection lifecycle.
-        
+
         This task enters all context managers, stays alive until shutdown signal,
         then exits all contexts properly in the same task context.
+
+        Error-handling notes
+        --------------------
+        * Uses ``except BaseException`` (not ``except Exception``) so that
+          ``asyncio.CancelledError`` — which inherits from ``BaseException``,
+          not ``Exception``, since Python 3.8 — is always caught.  Without
+          this, a cancellation would bypass the ``_ready_event.set()`` call
+          and leave ``connect()`` blocked forever.
+
+        * Calls ``_extract_root_cause()`` on the caught exception to unwrap
+          ``ExceptionGroup`` values produced by anyio's TaskGroup.  This
+          surfaces the real failure (e.g. "HTTP 502 Bad Gateway") instead of
+          the opaque "unhandled errors in a TaskGroup (1 sub-exception)"
+          message that previously appeared in logs.
         """
         try:
-            # Enter streamablehttp_client context - stays in THIS task
-            async with streamablehttp_client(self.url, headers=self.headers) as (read, write, get_session_id):
-                # Store session ID getter for resumability
-                self._get_session_id = get_session_id
+            # Use the current (non-deprecated) streamable_http_client API.
+            # create_mcp_http_client applies MCP-recommended timeouts and
+            # follow_redirects=True; custom headers are passed in here.
+            async with create_mcp_http_client(
+                headers=self.headers if self.headers else None
+            ) as http_client:
+                async with streamable_http_client(
+                    self.url, http_client=http_client
+                ) as (read, write, get_session_id):
+                    self._get_session_id = get_session_id
 
-                # Enter ClientSession context - stays in THIS task
-                async with ClientSession(read, write) as session:
-                    # Initialize
-                    await session.initialize()
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
 
-                    # Store session and signal ready
-                    self.session = session
-                    await self._discover_capabilities()
-                    self._connected = True
-                    self._circuit_breaker.record_success()
-                    self._last_error = None
-                    self._ready_event.set()
+                        self.session = session
+                        await self._discover_capabilities()
+                        self._connected = True
+                        self._circuit_breaker.record_success()
+                        self._last_error = None
+                        self._ready_event.set()
 
-                    logger.info(
-                        f"Connected to Streamable HTTP MCP server '{self.server_name}' at {self.url} - "
-                        f"discovered {len(self.tools)} tools, {len(self.resources)} resources, "
-                        f"{len(self.prompts)} prompts"
-                    )
+                        logger.info(
+                            f"Connected to Streamable HTTP MCP server '{self.server_name}' "
+                            f"at {self.url} - discovered {len(self.tools)} tools, "
+                            f"{len(self.resources)} resources, {len(self.prompts)} prompts"
+                        )
 
-                    # Stay alive until shutdown signal
-                    await self._shutdown_event.wait()
+                        # Stay alive until shutdown signal
+                        await self._shutdown_event.wait()
 
-                    logger.debug(f"Shutting down connection to '{self.server_name}'")
-                    # Exiting contexts here cleans up properly in THIS task
+                        logger.debug(
+                            f"Shutting down connection to '{self.server_name}'"
+                        )
+                        # Exiting contexts here cleans up properly in THIS task
 
-        except Exception as e:
-            # Store error and signal ready so connect() can raise it
-            self._connection_error = e
+        except BaseException as e:
+            # Unwrap anyio ExceptionGroup → real transport error for readable logs.
+            root_cause = _extract_root_cause(e)
+
+            self._connection_error = root_cause
             self._connected = False
-            self._last_error = e
-            self._circuit_breaker.record_failure()
+
+            # Only store as _last_error / record circuit-breaker failure for
+            # genuine transport errors, not for external task cancellation.
+            if not isinstance(e, asyncio.CancelledError):
+                self._last_error = (
+                    root_cause if isinstance(root_cause, Exception) else None
+                )
+                self._circuit_breaker.record_failure()
+
+            # Always unblock connect() so it never hangs.
             self._ready_event.set()
 
-            logger.error(f"Failed to connect to Streamable HTTP MCP server '{self.server_name}': {e}")
+            if isinstance(e, asyncio.CancelledError):
+                logger.debug(f"Connection task for '{self.server_name}' was cancelled")
+            else:
+                logger.error(
+                    f"Failed to connect to Streamable HTTP MCP server "
+                    f"'{self.server_name}': {root_cause}"
+                )
 
         finally:
             # Clear state
@@ -141,8 +199,12 @@ class MCPStreamableHTTPClient:
 
         # Check circuit breaker
         if self._circuit_breaker.is_open():
-            logger.warning(f"Circuit breaker is OPEN for '{self.server_name}' - blocking connection attempt")
-            raise RuntimeError(f"Circuit breaker is OPEN for server '{self.server_name}'")
+            logger.warning(
+                f"Circuit breaker is OPEN for '{self.server_name}' - blocking connection attempt"
+            )
+            raise RuntimeError(
+                f"Circuit breaker is OPEN for server '{self.server_name}'"
+            )
 
         self._connection_attempts += 1
 
@@ -154,17 +216,38 @@ class MCPStreamableHTTPClient:
         # Start background task
         self._connection_task = asyncio.create_task(
             self._connection_task_impl(),
-            name=f"mcp-http-{self.server_name}"
+            name=f"mcp-http-{self.server_name}",
         )
 
-        # Wait for ready signal
-        await self._ready_event.wait()
+        # Wait for ready signal with a hard timeout.
+        # asyncio.shield() keeps the background task alive even if the outer
+        # wait_for times out and raises TimeoutError here.
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(self._ready_event.wait()),
+                timeout=CONNECTION_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            # Server accepted the connection but never completed the handshake.
+            # Cancel the background task so it doesn't linger.
+            self._connection_task.cancel()
+            try:
+                await self._connection_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._connection_task = None
+            raise RuntimeError(
+                f"Streamable HTTP MCP server '{self.server_name}' did not respond "
+                f"within {CONNECTION_TIMEOUT:.0f}s (timed out connecting to {self.url})"
+            )
 
         # Check for startup errors
         if self._connection_error:
             await self._connection_task
             self._connection_task = None
-            raise RuntimeError(f"Streamable HTTP MCP server connection failed: {self._connection_error}")
+            raise RuntimeError(
+                f"Streamable HTTP MCP server connection failed: {self._connection_error}"
+            )
 
     async def _discover_capabilities(self) -> None:
         """Discover tools, resources, and prompts from server."""
@@ -190,7 +273,9 @@ class MCPStreamableHTTPClient:
                     "uri": resource.uri,
                     "name": resource.name,
                     "description": resource.description or "",
-                    "mime_type": resource.mimeType if hasattr(resource, "mimeType") else None,
+                    "mime_type": resource.mimeType
+                    if hasattr(resource, "mimeType")
+                    else None,
                 }
                 for resource in resources_result.resources
             ]
@@ -206,7 +291,11 @@ class MCPStreamableHTTPClient:
                     "name": prompt.name,
                     "description": prompt.description or "",
                     "arguments": [
-                        {"name": arg.name, "description": arg.description or "", "required": arg.required}
+                        {
+                            "name": arg.name,
+                            "description": arg.description or "",
+                            "required": arg.required,
+                        }
                         for arg in (prompt.arguments or [])
                     ],
                 }
@@ -229,7 +318,9 @@ class MCPStreamableHTTPClient:
         except Exception as e:
             self._circuit_breaker.record_failure()
             self._last_error = e
-            logger.error(f"Tool call failed for '{tool_name}' on '{self.server_name}': {e}")
+            logger.error(
+                f"Tool call failed for '{tool_name}' on '{self.server_name}': {e}"
+            )
             raise RuntimeError(f"Tool execution failed: {e}") from e
 
     async def read_resource(self, uri: str) -> Any:
@@ -245,10 +336,14 @@ class MCPStreamableHTTPClient:
         except Exception as e:
             self._circuit_breaker.record_failure()
             self._last_error = e
-            logger.error(f"Resource read failed for '{uri}' on '{self.server_name}': {e}")
+            logger.error(
+                f"Resource read failed for '{uri}' on '{self.server_name}': {e}"
+            )
             raise RuntimeError(f"Resource read failed: {e}") from e
 
-    async def get_prompt(self, name: str, arguments: dict[str, Any] | None = None) -> Any:
+    async def get_prompt(
+        self, name: str, arguments: dict[str, Any] | None = None
+    ) -> Any:
         """Get a prompt from the MCP server."""
         if not self._connected or not self.session:
             await self.connect()
@@ -271,7 +366,9 @@ class MCPStreamableHTTPClient:
 
         try:
             await self.session.set_logging_level(level=level)
-            logger.info(f"Set logging level to '{level}' for server '{self.server_name}'")
+            logger.info(
+                f"Set logging level to '{level}' for server '{self.server_name}'"
+            )
 
         except Exception as e:
             logger.error(f"Failed to set logging level: {e}")
@@ -292,7 +389,9 @@ class MCPStreamableHTTPClient:
             logger.warning(f"Error during {self.server_name} shutdown: {e}")
         finally:
             self._connection_task = None
-            logger.info(f"Disconnected from Streamable HTTP MCP server '{self.server_name}'")
+            logger.info(
+                f"Disconnected from Streamable HTTP MCP server '{self.server_name}'"
+            )
 
     def get_tools(self) -> list[dict[str, Any]]:
         """Get the list of discovered tools."""

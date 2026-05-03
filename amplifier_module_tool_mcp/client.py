@@ -79,7 +79,7 @@ class MCPClient:
         self._connection_task: asyncio.Task | None = None
         self._ready_event = asyncio.Event()
         self._shutdown_event = asyncio.Event()
-        self._connection_error: Exception | None = None
+        self._connection_error: BaseException | None = None
 
         # Reconnection and health management
         self._reconnection_strategy = ReconnectionStrategy(reconnection_config)
@@ -186,20 +186,35 @@ class MCPClient:
                 if log_file:
                     log_file.close()
 
-        except Exception as e:
-            # Store error and signal ready so connect() can raise it
+        except BaseException as e:
+            # Use ``except BaseException`` (not ``except Exception``) so that
+            # ``asyncio.CancelledError`` -- which inherits from
+            # ``BaseException``, not ``Exception``, since Python 3.8 -- is
+            # always caught.  Without this, a cancellation during
+            # ``session.initialize()`` or ``_discover_capabilities()`` would
+            # bypass the ``_ready_event.set()`` call and leave ``connect()``
+            # blocked forever (mirrors the fix in streamable_http_client.py).
             self._connection_error = e
             self._state = ConnectionState.ERROR
-            self._last_error = e
-            self._circuit_breaker.record_failure()
+
+            # Only record as _last_error / circuit-breaker failure for
+            # genuine transport errors, not for external task cancellation.
+            if not isinstance(e, asyncio.CancelledError):
+                self._last_error = e if isinstance(e, Exception) else None
+                self._circuit_breaker.record_failure()
+
+            # Always unblock connect() so it never hangs.
             self._ready_event.set()
 
-            # Include log file location in error message if suppressed
-            error_msg = f"Failed to connect to MCP server '{self.server_name}': {e}"
-            if not self.verbose_servers:
-                log_file_path = self.server_log_dir / f"{self.server_name}.log"
-                error_msg += f"\nServer logs available at: {log_file_path}"
-            logger.error(error_msg)
+            if isinstance(e, asyncio.CancelledError):
+                logger.debug(f"Connection task for '{self.server_name}' was cancelled")
+            else:
+                # Include log file location in error message if suppressed
+                error_msg = f"Failed to connect to MCP server '{self.server_name}': {e}"
+                if not self.verbose_servers:
+                    log_file_path = self.server_log_dir / f"{self.server_name}.log"
+                    error_msg += f"\nServer logs available at: {log_file_path}"
+                logger.error(error_msg)
 
         finally:
             # Clear state
@@ -313,7 +328,7 @@ class MCPClient:
             resources_result = await self.session.list_resources()
             self.resources = [
                 {
-                    "uri": resource.uri,
+                    "uri": str(resource.uri),
                     "name": resource.name,
                     "description": resource.description or "",
                     "mime_type": resource.mimeType if hasattr(resource, "mimeType") else None,

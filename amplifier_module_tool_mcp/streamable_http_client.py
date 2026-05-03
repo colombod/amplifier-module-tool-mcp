@@ -133,8 +133,23 @@ class MCPStreamableHTTPClient:
             ) as http_client:
                 async with streamable_http_client(
                     self.url, http_client=http_client
-                ) as (read, write, get_session_id):
-                    self._get_session_id = get_session_id
+                ) as conn:
+                    # Tolerate 2-tuple or 3-tuple unpacking.  The MCP SDK has
+                    # historically returned ``(read, write)`` and now returns
+                    # ``(read, write, get_session_id)``.  Callers downstream
+                    # of this module pin different SDK versions, so we accept
+                    # either shape rather than crashing on a TypeError.
+                    if len(conn) == 3:
+                        read, write, get_session_id = conn
+                        self._get_session_id = get_session_id
+                    elif len(conn) == 2:
+                        read, write = conn
+                        self._get_session_id = None
+                    else:
+                        raise RuntimeError(
+                            f"Unexpected streamable_http_client return shape: "
+                            f"{len(conn)}-tuple (expected 2 or 3)"
+                        )
 
                     async with ClientSession(read, write) as session:
                         await session.initialize()
@@ -270,7 +285,7 @@ class MCPStreamableHTTPClient:
             resources_result = await self.session.list_resources()
             self.resources = [
                 {
-                    "uri": resource.uri,
+                    "uri": str(resource.uri),
                     "name": resource.name,
                     "description": resource.description or "",
                     "mime_type": resource.mimeType
